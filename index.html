@@ -5,101 +5,197 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow, noarchive">
 <title>Acceso privado</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#0b1120; --panel:#131c2e; --panel2:#0f1725; --line:#233149;
-    --tx:#e6eef8; --mut:#93a4bd; --good:#34d399; --warn:#fbbf24; --bad:#fb7185;
-    --liq:#2dd4bf; --usd:#38bdf8; --idx:#818cf8; --stk:#c084fc; --btc:#fbbf24; --arg:#fb7185;
-    --r:14px;
+    --bg:#0a0d13; --bg2:#0d1119;
+    --panel:#12161f; --panel2:#0e121a; --elev:#161c28;
+    --line:#212736; --line2:#2c3446;
+    --tx:#eef2f8; --mut:#8b94a7; --faint:#5c6474;
+    --gold:#f6b23a; --purple:#8b5cf6;
+    --good:#35d6a4; --warn:#f6b23a; --bad:#fb7185;
+    --liq:#4dd0b1; --idx:#6c8cff; --btc:#f6b23a; --tem:#c084fc;
+    --disp:'Space Grotesk','IBM Plex Sans',system-ui,sans-serif;
+    --body:'IBM Plex Sans',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    --r:16px;
   }
   *{box-sizing:border-box}
   html,body{margin:0}
-  body{background:radial-gradient(1200px 600px at 80% -10%,#16233c 0,transparent 60%),var(--bg);
-    color:var(--tx);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
-    -webkit-font-smoothing:antialiased;padding:22px 16px 60px}
-  .wrap{max-width:1120px;margin:0 auto}
-  h1{font-size:24px;margin:0 0 4px;letter-spacing:.2px}
-  h2{font-size:15px;text-transform:uppercase;letter-spacing:1.2px;color:var(--mut);margin:0 0 12px}
-  .sub{color:var(--mut);margin:0 0 14px}
-  .chips{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0 22px}
-  .chip{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:5px 11px;font-size:12.5px;color:#c7d4e6}
-  .grid{display:grid;gap:16px}
-  .panel{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:var(--r);padding:18px}
-  .controls{grid-template-columns:1.1fr 1.1fr 1fr}
-  @media(max-width:820px){.controls{grid-template-columns:1fr}}
-  .seg{display:flex;gap:6px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:5px}
-  .seg button{flex:1;background:transparent;border:0;color:var(--mut);padding:9px 6px;border-radius:7px;cursor:pointer;font-size:13.5px;font-weight:600;transition:.15s}
-  .seg button.on{background:#2a3a58;color:#fff}
-  .field{margin-top:14px}
-  .field label{display:block;font-size:12.5px;color:var(--mut);margin-bottom:6px}
-  .money{display:flex;gap:6px;align-items:center}
-  input[type=number]{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--tx);border-radius:9px;padding:10px;font-size:15px}
-  input[type=range]{width:100%;-webkit-appearance:none;appearance:none;height:6px;border-radius:6px;background:#26344e;outline:none}
-  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#fff;cursor:pointer;border:3px solid #2a3a58;box-shadow:0 1px 4px rgba(0,0,0,.5)}
-  input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#fff;cursor:pointer;border:3px solid #2a3a58}
-  .row2{grid-template-columns:1.5fr 1fr}
-  @media(max-width:900px){.row2{grid-template-columns:1fr}}
-  .barwrap{height:26px;border-radius:8px;overflow:hidden;display:flex;background:#0c1424;border:1px solid var(--line)}
-  .barwrap span{height:100%}
-  .legend{display:flex;flex-wrap:wrap;gap:10px 16px;margin-top:12px}
-  .legend div{display:flex;align-items:center;gap:7px;font-size:12.5px;color:#c7d4e6}
-  .dot{width:11px;height:11px;border-radius:3px;flex:none}
-  .alloc{margin-top:6px}
-  .aitem{padding:14px 0;border-top:1px solid var(--line)}
+  body{
+    background:
+      radial-gradient(900px 500px at 88% -8%,rgba(246,178,58,.10),transparent 60%),
+      radial-gradient(800px 520px at 5% 8%,rgba(139,92,246,.10),transparent 55%),
+      var(--bg);
+    color:var(--tx);font-family:var(--body);font-size:15px;line-height:1.55;
+    -webkit-font-smoothing:antialiased;padding:26px 16px 70px;letter-spacing:.1px}
+  .wrap{max-width:1140px;margin:0 auto}
+  .num,h1,h2,.kpi-v,.apct,.brow b,.big{font-family:var(--disp);font-feature-settings:"tnum" 1,"ss01" 1}
+  h1{font-size:26px;font-weight:700;margin:0;letter-spacing:-.4px}
+  h2{font-size:15.5px;font-weight:600;margin:0;letter-spacing:-.1px}
+  a{color:#9db4ff;text-decoration:none}
+  a:hover{text-decoration:underline}
+  .mut{color:var(--mut)}
+  .mini{font-size:11.5px;color:var(--mut);line-height:1.5}
+
+  /* header */
+  .hero{margin-bottom:22px}
+  .brand{display:flex;align-items:center;gap:13px}
+  .logo{width:44px;height:44px;border-radius:13px;flex:none;display:flex;align-items:center;justify-content:center;
+    background:linear-gradient(150deg,rgba(246,178,58,.22),rgba(139,92,246,.16));border:1px solid var(--line2);color:var(--gold)}
+  .logo svg{width:23px;height:23px}
+  .brand .bt{font-family:var(--disp);font-weight:700;font-size:19px;letter-spacing:-.3px}
+  .brand .bs{font-size:12px;color:var(--mut);letter-spacing:.3px}
+  .lead{color:#c4cddd;margin:16px 0 14px;max-width:70ch;font-size:14.5px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-size:12px;color:#c2cbdb}
+  .chip b{color:var(--gold);font-weight:600}
+
+  /* layout */
+  .grid{display:grid;gap:15px}
+  .g2{grid-template-columns:1fr 1fr}
+  .g-alloc{grid-template-columns:1.45fr 1fr}
+  @media(max-width:860px){.g2,.g-alloc{grid-template-columns:1fr}}
+  section.panel{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);
+    border-radius:var(--r);padding:19px;box-shadow:0 1px 0 rgba(255,255,255,.03) inset,0 14px 34px -22px rgba(0,0,0,.7)}
+  .phead{display:flex;align-items:center;gap:11px;margin-bottom:16px}
+  .phead .sub{font-size:11.5px;color:var(--faint);margin-top:2px}
+  .ic{width:33px;height:33px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;flex:none;border:1px solid var(--line2)}
+  .ic svg{width:17px;height:17px}
+  .ic-gold{background:rgba(246,178,58,.13);color:var(--gold)}
+  .ic-idx{background:rgba(108,140,255,.13);color:var(--idx)}
+  .ic-good{background:rgba(53,214,164,.13);color:var(--good)}
+  .ic-tem{background:rgba(192,132,252,.13);color:var(--tem)}
+  .ic-mut{background:rgba(255,255,255,.04);color:var(--mut)}
+
+  /* inputs */
+  .field{margin-top:13px}
+  .field:first-child{margin-top:0}
+  label{display:block;font-size:12px;color:var(--mut);margin-bottom:7px;font-weight:500}
+  .money{display:flex;align-items:center;gap:7px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:0 11px}
+  .money .cur{color:var(--faint);font-family:var(--disp);font-size:13px}
+  input[type=number]{width:100%;background:transparent;border:0;color:var(--tx);padding:11px 0;font-size:15px;font-family:var(--disp);font-feature-settings:"tnum" 1}
+  input:focus-visible{outline:2px solid var(--purple);outline-offset:2px}
+  .money:focus-within{border-color:var(--line2)}
+  .three{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  @media(max-width:520px){.three{grid-template-columns:1fr}}
+  .three label{font-size:11px}
+
+  .seg{display:flex;gap:5px;background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:5px}
+  .seg button{flex:1;background:transparent;border:0;color:var(--mut);padding:9px 6px;border-radius:8px;cursor:pointer;
+    font-size:13px;font-weight:600;font-family:var(--body);transition:background .18s,color .18s}
+  .seg button:hover{color:#cfd8e8}
+  .seg button.on{background:linear-gradient(180deg,#273249,#212b40);color:#fff;box-shadow:0 0 0 1px var(--line2)}
+  .seg.mini button{font-family:var(--disp);font-size:12.5px;padding:8px 4px}
+
+  input[type=range]{width:100%;-webkit-appearance:none;appearance:none;height:7px;border-radius:7px;background:#232c40;outline:none;margin:2px 0}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:19px;height:19px;border-radius:50%;background:#fff;
+    cursor:pointer;border:4px solid #1a2233;box-shadow:0 2px 6px rgba(0,0,0,.55);transition:transform .12s}
+  input[type=range]:active::-webkit-slider-thumb{transform:scale(1.12)}
+  input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#fff;cursor:pointer;border:4px solid #1a2233}
+  .slabel{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px}
+  .slabel .v{font-family:var(--disp);font-weight:600;color:var(--tx);font-size:13.5px}
+
+  /* flujo breakdown */
+  .brk{display:flex;flex-direction:column;gap:2px}
+  .brow{display:flex;justify-content:space-between;align-items:center;padding:11px 2px;border-bottom:1px dashed var(--line)}
+  .brow span{color:#b9c2d4;font-size:13.5px}
+  .brow b{font-size:15px;font-weight:600}
+  .brow.neg b{color:var(--bad)}
+  .brow.tot{border-bottom:0;margin-top:4px;border-top:1px solid var(--line2);padding-top:13px}
+  .brow.tot span,.brow.tot b{color:var(--tx);font-weight:600}
+  .brow.inv{background:linear-gradient(90deg,rgba(246,178,58,.10),rgba(246,178,58,.02));border:1px solid rgba(246,178,58,.28);
+    border-radius:12px;padding:13px 14px;margin-top:10px}
+  .brow.inv span{color:var(--gold);font-weight:600;font-size:13px}
+  .brow.inv b{color:var(--gold);font-size:20px}
+
+  /* allocation */
+  .bar{height:30px;border-radius:9px;overflow:hidden;display:flex;gap:2px;background:#0b0f17;border:1px solid var(--line);padding:2px}
+  .bar span{height:100%;border-radius:5px;transition:width .25s ease}
+  .legend{display:flex;flex-wrap:wrap;gap:9px 15px;margin-top:13px}
+  .legend div{display:flex;align-items:center;gap:7px;font-size:12px;color:#c7d0e0}
+  .dot{width:10px;height:10px;border-radius:3px;flex:none}
+  .aitem{padding:15px 0;border-top:1px solid var(--line)}
   .aitem:first-child{border-top:0}
-  .ahead{display:flex;align-items:center;gap:10px;justify-content:space-between}
-  .aname{display:flex;align-items:center;gap:9px;font-weight:600}
-  .apct{font-variant-numeric:tabular-nums;font-weight:700}
-  .amoney{color:var(--mut);font-size:12.5px;font-variant-numeric:tabular-nums}
-  .aslider{margin-top:9px}
-  .meta{display:flex;gap:12px;flex-wrap:wrap;margin-top:7px;font-size:12px;color:var(--mut)}
-  .risk{display:inline-flex;gap:3px;align-items:center}
-  .rp{width:7px;height:7px;border-radius:50%;background:#2a3a58}
-  .ex{font-size:12px;color:#9fb0c9;margin-top:6px;line-height:1.45}
-  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:4px}
-  @media(max-width:600px){.stats{grid-template-columns:1fr}}
-  .stat{background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:13px}
-  .stat .k{font-size:11.5px;color:var(--mut);text-transform:uppercase;letter-spacing:.6px}
-  .stat .v{font-size:22px;font-weight:700;margin-top:3px;font-variant-numeric:tabular-nums}
-  .meter{height:8px;border-radius:6px;background:#22314c;overflow:hidden;margin-top:8px}
-  .meter i{display:block;height:100%;border-radius:6px}
-  .total{display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:13px}
-  .badge{padding:3px 10px;border-radius:999px;font-weight:700;font-size:12.5px}
-  .btn{background:#2a3a58;border:1px solid var(--line);color:#fff;border-radius:9px;padding:8px 12px;cursor:pointer;font-size:13px;font-weight:600}
-  .btn:hover{background:#33456a}
-  .steps{display:grid;gap:12px}
-  .step{border-left:3px solid var(--idx);padding:2px 0 2px 14px}
-  .step.s0{border-color:var(--liq)} .step.s1{border-color:var(--usd)} .step.s2{border-color:var(--btc)}
-  .step b{display:block;margin-bottom:3px}
-  .step p{margin:0;color:#c1cfe2;font-size:13.5px}
-  .invg{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-  @media(max-width:760px){.invg{grid-template-columns:1fr}}
-  .inv{background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:13px}
-  .inv b{font-size:14px} .inv .t{font-size:11.5px;color:var(--btc);font-weight:700;text-transform:uppercase;letter-spacing:.5px}
-  .inv p{margin:5px 0 0;font-size:12.7px;color:#b9c7dd}
-  .callout{background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.35);border-radius:11px;padding:13px;font-size:13.3px}
-  .callout.w{background:rgba(251,191,36,.08);border-color:rgba(251,191,36,.35)}
-  .disc{color:#7d8ca6;font-size:11.6px;line-height:1.6;margin-top:26px;border-top:1px solid var(--line);padding-top:16px}
-  a{color:#8ab4ff}
-  .mini{font-size:11.5px;color:var(--mut)}
+  .ahead{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .aname{display:flex;align-items:center;gap:9px;font-weight:600;font-size:14px}
+  .apct{font-weight:700;font-size:16px}
+  .amoney{color:var(--mut);font-size:12px;font-family:var(--disp);font-feature-settings:"tnum" 1}
+  .ex{font-size:12px;color:#96a1b6;margin-top:8px;line-height:1.5}
+  .ex b{color:#b7c0d2;font-weight:600}
+  .rdots{display:inline-flex;gap:3px;vertical-align:middle}
+  .rp{width:6px;height:6px;border-radius:50%;background:#2b3550}
+  .total{display:flex;justify-content:space-between;align-items:center;margin-top:15px;gap:10px;flex-wrap:wrap}
+  .btn{background:var(--panel2);border:1px solid var(--line2);color:#dbe3f0;border-radius:10px;padding:9px 14px;cursor:pointer;
+    font-size:12.5px;font-weight:600;font-family:var(--body);transition:background .18s}
+  .btn:hover{background:#1b2233}
+
+  /* KPIs */
+  .kpis{display:grid;grid-template-columns:1fr 1fr 1fr;gap:11px}
+  @media(max-width:520px){.kpis{grid-template-columns:1fr}}
+  .kpi{background:var(--panel2);border:1px solid var(--line);border-radius:13px;padding:14px}
+  .kpi .k{font-size:10.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.8px;font-weight:600}
+  .kpi-v{font-size:23px;font-weight:600;margin-top:4px}
+  .meter{height:7px;border-radius:6px;background:#212a3d;overflow:hidden;margin-top:9px}
+  .meter i{display:block;height:100%;border-radius:6px;transition:width .3s ease}
+
+  /* callouts */
+  .callout{border-radius:13px;padding:15px;font-size:13.4px;line-height:1.55;color:#cbd4e4}
+  .callout.warn{background:linear-gradient(180deg,rgba(246,178,58,.07),transparent);border:1px solid rgba(246,178,58,.26)}
+  .callout.info{background:rgba(108,140,255,.06);border:1px solid rgba(108,140,255,.24)}
+  .callout b{color:var(--tx)}
+  .mudplan{margin-top:11px;font-size:12.5px;line-height:1.55;color:#b9c2d4}
+
+  /* steps */
+  .steps{display:grid;gap:13px}
+  .step{position:relative;padding-left:20px}
+  .step:before{content:"";position:absolute;left:0;top:5px;bottom:2px;width:3px;border-radius:3px;background:var(--line2)}
+  .step.s0:before{background:var(--liq)} .step.s1:before{background:var(--idx)} .step.s2:before{background:var(--gold)}
+  .step h4{margin:0 0 5px;font-family:var(--disp);font-size:14px;font-weight:600;letter-spacing:-.1px}
+  .step p{margin:0;color:#b6c0d2;font-size:13.2px;line-height:1.55}
+
+  /* referentes */
+  .invg{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+  @media(max-width:720px){.invg{grid-template-columns:1fr}}
+  .inv{background:var(--panel2);border:1px solid var(--line);border-radius:13px;padding:14px;transition:border-color .18s,transform .18s}
+  .inv:hover{border-color:var(--line2)}
+  .inv .t{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;color:var(--gold);font-weight:600;text-transform:uppercase;letter-spacing:.6px}
+  .inv .flag{font-family:var(--disp);font-size:10px;padding:1px 6px;border-radius:5px;background:rgba(255,255,255,.05);color:#9aa4b8;letter-spacing:.5px}
+  .inv b{font-size:14px;display:block;margin-top:6px}
+  .inv p{margin:5px 0 0;font-size:12.4px;color:#aab4c8;line-height:1.5}
+
+  .disc{color:#6b7488;font-size:11.4px;line-height:1.65;margin-top:26px;border-top:1px solid var(--line);padding-top:16px}
+
+  /* lock */
   #lock{position:fixed;inset:0;background:var(--bg);z-index:999;padding:20px;align-items:center;justify-content:center;display:none}
   body.locked{overflow:hidden}
   body.locked #lock{display:flex}
   body.locked .wrap{display:none}
-  #lock .box{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:14px;padding:26px;max-width:340px;width:100%;text-align:center}
-  #lock h3{margin:0 0 6px;font-size:18px}
-  #lock p{margin:0 0 16px;color:var(--mut);font-size:13px}
-  #lock input{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--tx);border-radius:9px;padding:11px;font-size:15px;text-align:center}
-  #lock button{margin-top:12px;width:100%;background:#2a3a58;border:1px solid var(--line);color:#fff;border-radius:9px;padding:11px;cursor:pointer;font-weight:600}
-  #lock .err{color:var(--bad);font-size:12.5px;margin-top:10px;min-height:16px}
+  #lock .box{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line2);border-radius:18px;
+    padding:30px 26px;max-width:350px;width:100%;text-align:center;box-shadow:0 30px 70px -30px #000}
+  #lock .lk{width:46px;height:46px;border-radius:13px;margin:0 auto 14px;display:flex;align-items:center;justify-content:center;
+    background:rgba(246,178,58,.13);color:var(--gold);border:1px solid var(--line2)}
+  #lock .lk svg{width:22px;height:22px}
+  #lock h3{margin:0 0 6px;font-family:var(--disp);font-size:19px;font-weight:600}
+  #lock p{margin:0 0 17px;color:var(--mut);font-size:13px}
+  #lock input{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--tx);border-radius:11px;
+    padding:12px;font-size:15px;text-align:center;font-family:var(--disp);letter-spacing:1px}
+  #lock button{margin-top:12px;width:100%;background:linear-gradient(180deg,var(--gold),#e09b1f);border:0;color:#1a1205;
+    border-radius:11px;padding:12px;cursor:pointer;font-weight:700;font-family:var(--body);font-size:14px}
+  #lock .err{color:var(--bad);font-size:12.5px;margin-top:11px;min-height:16px}
+
+  @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
 <body class="locked">
+
 <div id="lock">
   <div class="box">
-    <h3>🔒 Acceso privado</h3>
+    <div class="lk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+    <h3>Acceso privado</h3>
     <p>Ingresá la clave para ver el tablero.</p>
-    <input type="password" id="lockPass" placeholder="Clave" autocomplete="current-password">
+    <input type="password" id="lockPass" placeholder="clave" autocomplete="current-password">
     <button id="lockBtn">Entrar</button>
     <div class="err" id="lockErr"></div>
   </div>
@@ -120,255 +216,305 @@
   document.getElementById('lockPass').addEventListener('keydown',function(e){if(e.key==='Enter')tryPass();});
 })();
 </script>
+
 <div class="wrap">
-  <h1>🎯 Cartera Nacho · Tablero 2026</h1>
-  <p class="sub">Mové los sliders para repartir tu cartera. Elegí <b>perfil</b> y <b>plazo</b> para cargar una asignación sugerida, y ajustá el ingreso y la tasa de ahorro para ver cuántos pesos van a cada cosa.</p>
-  <div class="chips">
-    <span class="chip">🇦🇷 CEDEARs · Dólar MEP · bonos vía IOL</span>
-    <span class="chip">Joven profesional · Mendoza</span>
-    <span class="chip">Meta cercana: mudanza fin 2026</span>
-    <span class="chip">Con cuotas sin interés activas</span>
+
+  <!-- HEADER -->
+  <header class="hero">
+    <div class="brand">
+      <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l3-4 3 3 5-7"/><path d="M17 6h2v2" opacity=".7"/></svg></span>
+      <div>
+        <div class="bt">Cartera 2026</div>
+        <div class="bs">Asignación personal · CEDEARs · IOL</div>
+      </div>
+    </div>
+    <p class="lead">Mové los deslizadores para repartir tu cartera. Elegí perfil y plazo para cargar una asignación sugerida; abajo, tu flujo mensual real (ingreso − gastos − cuotas) define cuántos pesos van a cada activo.</p>
+    <div class="chips">
+      <span class="chip">CEDEARs de índices · <b>BTC</b> · ETFs temáticos</span>
+      <span class="chip">Operado en IOL</span>
+      <span class="chip">Fondo de mudanza casi listo</span>
+      <span class="chip">Cuotas sin interés activas</span>
+    </div>
+  </header>
+
+  <!-- FLUJO MENSUAL -->
+  <div class="grid g2" style="margin-bottom:15px">
+    <section class="panel">
+      <div class="phead">
+        <span class="ic ic-gold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12V8H6a2 2 0 0 1 0-4h12v4"/><path d="M4 6v12a2 2 0 0 0 2 2h14v-4"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/></svg></span>
+        <div><h2>Ingresos y gastos</h2><div class="sub">Todo editable · define tu excedente</div></div>
+      </div>
+
+      <div class="field">
+        <label>Ingreso neto mensual</label>
+        <div class="seg mini" id="ingreso">
+          <button data-v="1000000">1.000.000</button>
+          <button data-v="1500000" class="on">1.500.000</button>
+          <button data-v="2000000">2.000.000</button>
+        </div>
+        <div class="money" style="margin-top:8px"><span class="cur">$</span><input type="number" id="ingresoNum" value="1500000" step="10000"></div>
+      </div>
+
+      <div class="field">
+        <label>Gastos fijos mensuales (a futuro, ya mudado)</label>
+        <div class="three">
+          <div><label style="color:var(--faint)">Alquiler</label><div class="money"><span class="cur">$</span><input type="number" id="gAlq" value="500000" step="10000"></div></div>
+          <div><label style="color:var(--faint)">Comida</label><div class="money"><span class="cur">$</span><input type="number" id="gCom" value="300000" step="10000"></div></div>
+          <div><label style="color:var(--faint)">Imp + exp + serv</label><div class="money"><span class="cur">$</span><input type="number" id="gImp" value="200000" step="10000"></div></div>
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="slabel"><label style="margin:0">Cuotas de tarjeta / mes <span class="mini">(sin interés: pasadas + presentes + futuras)</span></label><span class="v" id="cuotasVal">$250.000</span></div>
+        <input type="range" id="cuotas" min="0" max="800000" step="10000" value="250000">
+      </div>
+
+      <div class="field">
+        <div class="slabel"><label style="margin:0">Del excedente, ¿cuánto invertís?</label><span class="v" id="pctVal">80%</span></div>
+        <input type="range" id="pctInv" min="0" max="100" step="5" value="80">
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="phead">
+        <span class="ic ic-good"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg></span>
+        <div><h2>Tu flujo cada mes</h2><div class="sub">De dónde sale lo que invertís</div></div>
+      </div>
+      <div class="brk">
+        <div class="brow"><span>Ingreso neto</span><b id="fIng">–</b></div>
+        <div class="brow neg"><span>− Gastos fijos</span><b id="fGastos">–</b></div>
+        <div class="brow neg"><span>− Cuotas de tarjeta</span><b id="fCuo">–</b></div>
+        <div class="brow tot"><span>= Excedente mensual</span><b id="fExced">–</b></div>
+        <div class="brow inv"><span id="fPctLbl">Para invertir</span><b id="fInv">–</b></div>
+      </div>
+      <div class="mini" id="fNote" style="margin-top:11px"></div>
+    </section>
   </div>
 
-  <!-- CONTROLES -->
-  <div class="grid controls" style="margin-bottom:16px">
-    <div class="panel">
-      <h2>Perfil de riesgo</h2>
-      <div class="seg" id="perfil">
-        <button data-v="conservador">Conservador</button>
-        <button data-v="moderado" class="on">Moderado</button>
-        <button data-v="arriesgado">Arriesgado</button>
+  <!-- PERFIL / PLAZO -->
+  <section class="panel" style="margin-bottom:15px">
+    <div class="grid g2">
+      <div>
+        <label>Perfil de riesgo</label>
+        <div class="seg" id="perfil">
+          <button data-v="conservador">Conservador</button>
+          <button data-v="moderado" class="on">Moderado</button>
+          <button data-v="arriesgado">Arriesgado</button>
+        </div>
       </div>
-      <div class="field">
+      <div>
         <label>Horizonte / plazo</label>
         <div class="seg" id="plazo">
-          <button data-v="corto">Corto (&lt;1 año)</button>
-          <button data-v="mediano">Mediano (1-4)</button>
-          <button data-v="largo" class="on">Largo (5+)</button>
+          <button data-v="corto">Corto · &lt;1 año</button>
+          <button data-v="mediano">Mediano · 1-4</button>
+          <button data-v="largo" class="on">Largo · 5+</button>
         </div>
       </div>
     </div>
+  </section>
 
-    <div class="panel">
-      <h2>Ingreso neto mensual</h2>
-      <div class="seg" id="ingreso">
-        <button data-v="1000000">$1.000.000</button>
-        <button data-v="1500000" class="on">$1.500.000</button>
-        <button data-v="2000000">$2.000.000</button>
+  <!-- ASIGNACION + RESUMEN -->
+  <div class="grid g-alloc">
+    <section class="panel">
+      <div class="phead">
+        <span class="ic ic-idx"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg></span>
+        <div><h2>Asignación de cartera</h2><div class="sub">Arrastrá cada activo · los % se normalizan a 100</div></div>
       </div>
-      <div class="field">
-        <label>O ingresá tu monto real</label>
-        <div class="money"><span class="mini">$</span><input type="number" id="ingresoNum" value="1500000" step="10000"></div>
-      </div>
-    </div>
-
-    <div class="panel">
-      <h2>¿Cuánto invertís por mes?</h2>
-      <div class="field" style="margin-top:2px">
-        <label>Tasa de ahorro: <b id="tasaLbl">20%</b> del ingreso</label>
-        <input type="range" id="tasa" min="0" max="60" value="20">
-      </div>
-      <div class="stat" style="margin-top:12px">
-        <div class="k">Disponible para invertir</div>
-        <div class="v" id="invMes">$300.000<span class="mini">/mes</span></div>
-        <div class="mini" id="invAnio">≈ $3.600.000 al año</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ASIGNACION -->
-  <div class="grid row2">
-    <div class="panel">
-      <h2>Asignación de cartera</h2>
-      <div class="barwrap" id="bar"></div>
+      <div class="bar" id="bar"></div>
       <div class="legend" id="legend"></div>
-      <div class="alloc" id="alloc"></div>
+      <div id="alloc"></div>
       <div class="total">
-        <span class="mini">Los % se normalizan a 100% para calcular los pesos. Suma de sliders: <b id="sumaRaw">100</b>%</span>
+        <span class="mini">Suma de deslizadores: <b id="sumaRaw" style="color:var(--tx)">100</b>% · los pesos se calculan sobre el 100% normalizado</span>
         <button class="btn" id="reset">↺ Volver al preset</button>
       </div>
-    </div>
+    </section>
 
-    <div class="panel">
-      <h2>Resumen de la cartera</h2>
-      <div class="stats">
-        <div class="stat">
-          <div class="k">Riesgo</div>
-          <div class="v" id="riesgoV">–</div>
-          <div class="meter"><i id="riesgoM" style="background:var(--bad)"></i></div>
-        </div>
-        <div class="stat">
-          <div class="k">Potencial</div>
-          <div class="v" id="growV">–</div>
-          <div class="meter"><i id="growM" style="background:var(--good)"></i></div>
-        </div>
-        <div class="stat">
-          <div class="k">Retorno ilustrativo</div>
-          <div class="v" id="retV">–</div>
-          <div class="mini">anual en USD/real*</div>
-        </div>
+    <section class="panel">
+      <div class="phead">
+        <span class="ic ic-good"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg></span>
+        <div><h2>Resumen</h2><div class="sub">Riesgo, potencial y retorno</div></div>
+      </div>
+      <div class="kpis">
+        <div class="kpi"><div class="k">Riesgo</div><div class="kpi-v" id="riesgoV">–</div><div class="meter"><i id="riesgoM" style="background:var(--bad)"></i></div></div>
+        <div class="kpi"><div class="k">Potencial</div><div class="kpi-v" id="growV">–</div><div class="meter"><i id="growM" style="background:var(--good)"></i></div></div>
+        <div class="kpi"><div class="k">Retorno*</div><div class="kpi-v" id="retV">–</div><div class="mini" style="margin-top:5px">anual USD/real</div></div>
       </div>
 
-      <div style="margin-top:16px" class="callout w">
-        <b>🏠 Fondo de mudanza primero.</b> Antes de invertir en riesgo, cubrí el costo de mudarte (depósito + comisión + primer mes + instalación).
-        <div class="field">
-          <label>Objetivo de mudanza</label>
-          <div class="money"><span class="mini">$</span><input type="number" id="objMud" value="2500000" step="50000"></div>
+      <div class="callout warn" style="margin-top:16px">
+        <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
+          <span class="ic ic-gold" style="width:28px;height:28px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg></span>
+          <b>Fondo de mudanza</b>
         </div>
-        <div class="mini" style="margin-top:8px" id="mudPlan"></div>
+        Vos y tu novia ya vienen ahorrando en FCI ($ y USD), y sigue rindiendo hasta que lo usen.
+        <div class="three" style="margin-top:11px">
+          <div><label>Ya ahorrado</label><div class="money"><span class="cur">$</span><input type="number" id="objYa" value="3900000" step="50000"></div></div>
+          <div><label>Costo mudanza</label><div class="money"><span class="cur">$</span><input type="number" id="objMud" value="3500000" step="50000"></div></div>
+        </div>
+        <div class="mudplan" id="mudPlan"></div>
       </div>
-    </div>
+    </section>
   </div>
 
-  <!-- PLAN POR ETAPAS -->
-  <div class="panel" style="margin-top:16px">
-    <h2>Plan por etapas (tu situación real)</h2>
+  <!-- PLAN -->
+  <section class="panel" style="margin-top:15px">
+    <div class="phead">
+      <span class="ic ic-idx"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></span>
+      <div><h2>Plan por etapas</h2><div class="sub">Pensado para tu situación</div></div>
+    </div>
     <div class="steps">
       <div class="step s0">
-        <b>Etapa 0 · Ahora → dic 2026 · La mudanza manda</b>
-        <p><b>Prioridad #1:</b> armar el fondo de mudanza en <b>Liquidez</b> (FCI money market en pesos, rescate en 24h) y algo en <b>dólar MEP</b>. Esa plata no va a acciones ni a BTC: la necesitás sí o sí en pocos meses.<br>
-        <b>Cuotas sin interés → NO las adelantes.</b> Con inflación, pagar la cuota fija más adelante te sale más barato en términos reales. Dejá que se licúen y mantené esa plata rindiendo en el money market.<br>
-        Recién cuando el fondo de mudanza esté cubierto, mandás el excedente a la cartera.</p>
+        <h4>Etapa 0 · Ahora → dic 2026 · La mudanza</h4>
+        <p>El fondo <b>ya está casi armado</b> (~$4M entre vos y tu novia en FCI $ y USD). Dejalo ahí <b>rindiendo</b> hasta la mudanza; no lo pases a BTC ni a índices porque lo vas a necesitar en pocos meses. <b>Cuotas sin interés → no las adelantes:</b> con inflación, pagar la cuota fija más adelante te sale más barato en términos reales; dejá que se licúen. Lo que te sobre del fondo ya podés empezar a mandarlo a la cartera.</p>
       </div>
       <div class="step s1">
-        <b>Etapa 1 · Cuando tu ingreso crezca</b>
-        <p><b>Fondo de emergencia:</b> 3–6 meses de gastos (ahora suben por el alquiler) líquidos en pesos/dólar.<br>
-        Con el colchón listo, <b>automatizá</b>: apenas cobrás, comprás tu cartera según perfil (dollar-cost averaging, siempre el mismo día). No intentes adivinar el mercado.<br>
-        Rebalanceá cada 6–12 meses para volver a tus %.</p>
+        <h4>Etapa 1 · Cuando tu ingreso crezca</h4>
+        <p><b>Fondo de emergencia</b> de 3–6 meses de gastos (ahora suben por el alquiler), líquido. Con el colchón listo, <b>automatizá</b>: apenas cobrás, comprás tu cartera según perfil (DCA, siempre el mismo día). No intentes adivinar el mercado. Rebalanceá cada 6–12 meses.</p>
       </div>
       <div class="step s2">
-        <b>Etapa 2 · Largo plazo</b>
-        <p>La <b>base</b> son CEDEARs de índices (SPY/QQQ) + dólar. Acciones individuales y BTC son <b>satélites</b>: subí ese % solo con plata que no vas a tocar en 5+ años. El tiempo en el mercado, no el timing, es lo que compone.</p>
+        <h4>Etapa 2 · Largo plazo</h4>
+        <p>La <b>base</b> son los CEDEARs de índices (SPY/QQQ). <b>Bitcoin</b> (DCA mensual) y los <b>ETFs temáticos/oro</b> son satélites: subí ese % solo con plata que no vas a tocar en 5+ años. El tiempo en el mercado, no el timing, es lo que compone.</p>
       </div>
     </div>
-    <div class="callout" style="margin-top:14px">
-      <b>En tu plataforma (IOL · InvertirOnline):</b> desde una sola cuenta operás CEDEARs, Dólar MEP (botón integrado), acciones argentinas, bonos, ON y FCI money market. Cargás pesos por CBU. Contrastá con los <a href="https://www.invertironline.com/posts/reportes" target="_blank" rel="noopener">Portafolios Sugeridos</a> mensuales de IOL (Conservador/Moderado/Agresivo). <b>BTC real no está en IOL:</b> para eso usás un exchange aparte (Belo, Lemon, Ripio) y pasás a custodia propia; o tomás exposición cripto con CEDEARs (MSTR, COIN) dentro de IOL.
+    <div class="callout info" style="margin-top:15px">
+      <b>En IOL (InvertirOnline):</b> desde una sola cuenta operás <b>CEDEARs de índices</b> (SPY, QQQ, DIA), <b>ETFs temáticos y oro</b> como CEDEAR (GLD, SMH, CIBR, URA) y hasta <b>Bitcoin</b> con el ETF <b>IBIT</b> como CEDEAR. Cargás pesos por CBU. Contrastá con los <a href="https://www.invertironline.com/posts/reportes" target="_blank" rel="noopener">Portafolios Sugeridos</a> de IOL. <b>¿BTC con custodia propia?</b> No está en IOL: comprás en un exchange (Belo, Lemon, Ripio) y lo pasás a tu billetera. Nota: <b>computación cuántica</b> todavía no tiene un CEDEAR de ETF puro (QTUM no cotiza); la exposición va indirecta dentro de SMH/QQQ.
     </div>
-  </div>
+  </section>
 
   <!-- REFERENTES -->
-  <div class="panel" style="margin-top:16px">
-    <h2>Referentes para aprender (castellano · IG / YouTube)</h2>
-    <p class="mini" style="margin-top:-6px;margin-bottom:12px">Enlaces <b>verificados en julio 2026</b>. Es material <b>educativo</b> para formarte, no para copiar “señales”. 🚩 Desconfiá de quien promete rendimientos garantizados, vende grupos de Telegram de trading o pide plata para “multiplicártela”.</p>
-    <div class="invg">
-      <div class="inv"><span class="t">🇦🇷 Tu broker · IOL</span><br><b><a href="https://www.youtube.com/@invertirOnlinear" target="_blank" rel="noopener">IOL invertironline</a></b><p>Canal oficial: serie “#IOLenVIVO” y tutoriales de cómo comprar CEDEARs, Dólar MEP y bonos paso a paso. Además publican <a href="https://www.invertironline.com/posts/reportes" target="_blank" rel="noopener">Portafolios Sugeridos</a> por perfil.</p></div>
-      <div class="inv"><span class="t">🇦🇷 Finanzas personales</span><br><b><a href="https://www.nicolaslitvinoff.net/" target="_blank" rel="noopener">Nicolás Litvinoff · Estudinero</a></b><p>Economista (UBA) y columnista de La Nación. Finanzas personales e inversión explicadas para argentinos. Ideal para arrancar de cero.</p></div>
-      <div class="inv"><span class="t">🇦🇷 Mercado local · CEDEARs</span><br><b>Martín Genero · #MercadoFresh</b><p>Guías de acciones, bonos y CEDEARs con foco en Argentina y contexto macro. Buscalo en YouTube.</p></div>
-      <div class="inv"><span class="t">🇦🇷 Cripto · Bitcoin</span><br><b><a href="https://x.com/franamati" target="_blank" rel="noopener">Franco Amati</a> · Bitcoin Argentina</b><p>Referente de BTC en Argentina (ONG Bitcoin Argentina). Educación seria sobre el activo, sin humo, antes de comprar.</p></div>
-      <div class="inv"><span class="t">🇪🇸 Indexación · largo plazo</span><br><b><a href="https://carlosgalan.net/" target="_blank" rel="noopener">Carlos Galán</a></b><p>“Independízate de papá Estado”. Fondos indexados y comprar-y-sostener. La mejor base conceptual para tu cartera de índices.</p></div>
-      <div class="inv"><span class="t">🇪🇸 Acciones · value</span><br><b><a href="https://www.youtube.com/@Artedeinvertir" target="_blank" rel="noopener">Alejandro Estebaranz · Arte de Invertir</a></b><p>Gestor real (True Value) y +1M de subs, la comunidad de bolsa más grande en español. Para elegir CEDEARs individuales con criterio.</p></div>
-      <div class="inv"><span class="t">🇪🇸 Dividendos</span><br><b><a href="https://invertirenbolsa.info/" target="_blank" rel="noopener">Gregorio Hernández · Invertir en Bolsa</a></b><p>Estrategia de dividendos a largo plazo, muy detallada, con foro activo. Filosofía de largo plazo pura.</p></div>
-      <div class="inv"><span class="t">🌎 Macro · mercados</span><br><b>Pablo Gil</b><p>Macroeconomía y análisis técnico para entender el “clima” de los mercados globales. Buscalo en YouTube.</p></div>
+  <section class="panel" style="margin-top:15px">
+    <div class="phead">
+      <span class="ic ic-tem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></span>
+      <div><h2>Referentes para aprender</h2><div class="sub">Castellano · Instagram / YouTube · verificados jul 2026</div></div>
     </div>
-  </div>
+    <div class="callout warn" style="margin-bottom:13px;font-size:12.5px">
+      Material <b>educativo</b> para formarte, no para copiar “señales”. Desconfiá de quien promete rendimientos garantizados, vende grupos de Telegram de trading o pide plata para “multiplicártela”.
+    </div>
+    <div class="invg">
+      <div class="inv"><span class="t"><span class="flag">AR</span> Tu broker · IOL</span><b><a href="https://www.youtube.com/@invertirOnlinear" target="_blank" rel="noopener">IOL invertironline</a></b><p>Canal oficial: serie “#IOLenVIVO” y tutoriales de cómo comprar CEDEARs, Dólar MEP y bonos paso a paso. Además publican <a href="https://www.invertironline.com/posts/reportes" target="_blank" rel="noopener">Portafolios Sugeridos</a> por perfil.</p></div>
+      <div class="inv"><span class="t"><span class="flag">AR</span> Finanzas personales</span><b><a href="https://www.nicolaslitvinoff.net/" target="_blank" rel="noopener">Nicolás Litvinoff · Estudinero</a></b><p>Economista (UBA) y columnista de La Nación. Finanzas personales e inversión explicadas para argentinos. Ideal para arrancar de cero.</p></div>
+      <div class="inv"><span class="t"><span class="flag">AR</span> Mercado local · CEDEARs</span><b>Martín Genero · #MercadoFresh</b><p>Guías de acciones, bonos y CEDEARs con foco en Argentina y contexto macro. Buscalo en YouTube.</p></div>
+      <div class="inv"><span class="t"><span class="flag">AR</span> Bitcoin</span><b><a href="https://x.com/franamati" target="_blank" rel="noopener">Franco Amati</a> · Bitcoin Argentina</b><p>Referente de BTC en Argentina (ONG Bitcoin Argentina). Educación seria sobre el activo, sin humo, antes de comprar.</p></div>
+      <div class="inv"><span class="t"><span class="flag">ES</span> Indexación · largo plazo</span><b><a href="https://carlosgalan.net/" target="_blank" rel="noopener">Carlos Galán</a></b><p>“Independízate de papá Estado”. Fondos indexados y comprar-y-sostener. La mejor base conceptual para tu cartera de índices.</p></div>
+      <div class="inv"><span class="t"><span class="flag">ES</span> Acciones · value</span><b><a href="https://www.youtube.com/@Artedeinvertir" target="_blank" rel="noopener">Alejandro Estebaranz · Arte de Invertir</a></b><p>Gestor real (True Value) y +1M de subs, la comunidad de bolsa más grande en español. Para elegir CEDEARs con criterio.</p></div>
+      <div class="inv"><span class="t"><span class="flag">ES</span> Dividendos</span><b><a href="https://invertirenbolsa.info/" target="_blank" rel="noopener">Gregorio Hernández · Invertir en Bolsa</a></b><p>Estrategia de dividendos a largo plazo, muy detallada, con foro activo. Filosofía de largo plazo pura.</p></div>
+      <div class="inv"><span class="t"><span class="flag">GLOBAL</span> Macro · mercados</span><b>Pablo Gil</b><p>Macroeconomía y análisis técnico para entender el “clima” de los mercados globales. Buscalo en YouTube.</p></div>
+    </div>
+  </section>
 
   <p class="disc">
-    <b>Aviso:</b> este tablero es una herramienta <b>educativa y personal</b>, no es asesoramiento financiero ni una recomendación de compra. Los porcentajes, retornos y ejemplos son ilustrativos: rendimientos pasados no garantizan rendimientos futuros y toda inversión puede perder valor (BTC y acciones tienen volatilidad alta). *El “retorno ilustrativo” es un promedio ponderado grosero en términos de USD/real, no una proyección. Antes de invertir montos relevantes, informate por vos mismo y, si podés, consultá con un asesor matriculado (Agente Productor / idóneo CNV). Los tickers y brokers se nombran solo como ejemplo.
+    <b>Aviso:</b> tablero <b>educativo y personal</b>, no es asesoramiento financiero ni recomendación de compra. Porcentajes, retornos y ejemplos son ilustrativos: rendimientos pasados no garantizan futuros y toda inversión puede perder valor (BTC y ETFs temáticos tienen volatilidad alta). *El retorno es un promedio ponderado grosero en USD/real, no una proyección. Antes de invertir montos relevantes, informate por vos mismo y, si podés, consultá con un asesor matriculado (idóneo CNV). Tickers y broker se nombran solo como ejemplo.
   </p>
 </div>
 
 <script>
-const fmt = new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0});
-const buckets = [
-  {id:'liq',v:'--liq',name:'Liquidez (money market $)',risk:1,grow:1,ret:0,ex:'En IOL: FCI money market en pesos (rescate 24-48h) o el rendimiento automático del saldo ocioso.',note:'Para el mes a mes, la mudanza y emergencias.'},
-  {id:'usd',v:'--usd',name:'Dólar / Renta fija USD',risk:2,grow:2,ret:4,ex:'En IOL: Dólar MEP (botón integrado), Obligaciones Negociables (YPF, Pampa, Telecom) y FCI en USD.',note:'Dolariza y protege. Poco volátil.'},
-  {id:'idx',v:'--idx',name:'CEDEARs de índices',risk:3,grow:4,ret:7,ex:'En IOL: SPY (S&P 500), QQQ (Nasdaq 100), DIA. Diversificación global en un click.',note:'La base para el largo plazo.'},
-  {id:'stk',v:'--stk',name:'CEDEARs de acciones',risk:4,grow:4,ret:8,ex:'En IOL: AAPL, MSFT, NVDA, GOOGL, AMZN, KO, MELI, BRK.B.',note:'Más upside y más riesgo. Complemento, no base.'},
-  {id:'btc',v:'--btc',name:'Bitcoin / Cripto',risk:5,grow:5,ret:12,ex:'IOL no vende BTC directo → exchange aparte (Belo, Lemon, Ripio) para BTC real, o exposición cripto vía CEDEARs en IOL (MSTR, COIN).',note:'Volatilidad extrema. Solo plata que no necesitás pronto.'},
-  {id:'arg',v:'--arg',name:'Acciones / Bonos Argentina',risk:5,grow:4,ret:6,ex:'En IOL: acciones Merval (GGAL, YPF, PAMP, ALUA) y bonos (AL30, GD30).',note:'Upside local pero riesgo país alto. Chico y opcional.'},
-];
-const css = k => getComputedStyle(document.documentElement).getPropertyValue(k).trim();
+const fmt=new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0});
+const num=id=>+document.getElementById(id).value||0;
+const css=k=>getComputedStyle(document.documentElement).getPropertyValue(k).trim();
 
-function preset(perfil, plazo){
-  const base = {
-    conservador:{liq:30,usd:40,idx:20,stk:5,btc:5,arg:0},
-    moderado:  {liq:15,usd:25,idx:30,stk:15,btc:10,arg:5},
-    arriesgado:{liq:5, usd:10,idx:30,stk:25,btc:25,arg:5},
+const buckets=[
+  {id:'liq',v:'--liq',name:'Liquidez (money market $)',risk:1,grow:1,ret:0,ex:'En IOL: FCI money market en pesos (rescate 24-48h) o el rendimiento del saldo ocioso.',note:'Fondo de mudanza + emergencias. Donde ya tenés tus ahorros.'},
+  {id:'idx',v:'--idx',name:'CEDEARs de índices · núcleo',risk:3,grow:4,ret:7,ex:'En IOL: SPY (S&P 500), QQQ (Nasdaq 100), DIA (Dow), IWM (small caps). Diversificás en cientos de empresas de una.',note:'Toda tu diversificación acá, como querés.'},
+  {id:'btc',v:'--btc',name:'Bitcoin (BTC)',risk:5,grow:5,ret:12,ex:'DCA mensual. IBIT (ETF de Bitcoin como CEDEAR, dentro de IOL) o BTC real en exchange (Belo/Lemon/Ripio) + custodia propia.',note:'Reserva de valor y crecimiento. Volatilidad alta: comprá siempre y aguantá.'},
+  {id:'tem',v:'--tem',name:'ETFs temáticos + oro',risk:4,grow:5,ret:8,ex:'En IOL (CEDEARs de ETF): GLD (oro), SMH (semiconductores/IA), CIBR (ciberseguridad), URA (uranio). Cuántica pura aún sin CEDEAR → indirecta en SMH/QQQ.',note:'Apuestas temáticas + refugio (oro). Satélite, no la base.'},
+];
+
+function preset(perfil,plazo){
+  const base={
+    conservador:{liq:35,idx:45,btc:5, tem:15},
+    moderado:  {liq:15,idx:55,btc:15,tem:15},
+    arriesgado:{liq:5, idx:50,btc:30,tem:15},
   }[perfil];
-  const a = {...base};
+  const a={...base};
   if(plazo!=='largo'){
-    const f = plazo==='corto'?0.8:0.45;
-    const w = {btc:1,arg:1,stk:0.8,idx:0.4};
+    const f=plazo==='corto'?0.8:0.45, w={btc:1,tem:0.8,idx:0.4};
     let moved=0;
-    ['btc','arg','stk','idx'].forEach(k=>{const m=a[k]*f*w[k];a[k]-=m;moved+=m;});
-    const toLiq = plazo==='corto'?0.6:0.4;
-    a.liq+=moved*toLiq; a.usd+=moved*(1-toLiq);
+    ['btc','tem','idx'].forEach(k=>{const m=a[k]*f*w[k];a[k]-=m;moved+=m;});
+    a.liq+=moved;
   }
   let s=0; Object.keys(a).forEach(k=>{a[k]=Math.round(a[k]);s+=a[k];});
-  a.liq += 100-s; // absorber redondeo
+  a.liq+=100-s;
   return a;
 }
 
-const state = {perfil:'moderado',plazo:'largo',ingreso:1500000,tasa:20,weights:preset('moderado','largo')};
+const state={perfil:'moderado',plazo:'largo',weights:preset('moderado','largo')};
 
-function seg(id,key,cb){
-  document.querySelectorAll('#'+id+' button').forEach(b=>b.onclick=()=>{
-    document.querySelectorAll('#'+id+' button').forEach(x=>x.classList.remove('on'));
-    b.classList.add('on');
-    cb(b.dataset.v);
-  });
-}
-seg('perfil','perfil',v=>{state.perfil=v;state.weights=preset(v,state.plazo);buildAlloc();render();});
-seg('plazo','plazo',v=>{state.plazo=v;state.weights=preset(state.perfil,v);buildAlloc();render();});
-seg('ingreso','ingreso',v=>{state.ingreso=+v;document.getElementById('ingresoNum').value=v;render();});
-document.getElementById('ingresoNum').oninput=e=>{state.ingreso=+e.target.value||0;render();};
-document.getElementById('tasa').oninput=e=>{state.tasa=+e.target.value;render();};
-document.getElementById('objMud').oninput=render;
+function seg(id,cb){document.querySelectorAll('#'+id+' button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#'+id+' button').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); cb(b.dataset.v);});}
+seg('perfil',v=>{state.perfil=v;state.weights=preset(v,state.plazo);buildAlloc();render();});
+seg('plazo', v=>{state.plazo=v;state.weights=preset(state.perfil,v);buildAlloc();render();});
+seg('ingreso',v=>{document.getElementById('ingresoNum').value=v;render();});
+['ingresoNum','gAlq','gCom','gImp','cuotas','pctInv','objMud','objYa'].forEach(id=>document.getElementById(id).addEventListener('input',render));
 document.getElementById('reset').onclick=()=>{state.weights=preset(state.perfil,state.plazo);buildAlloc();render();};
+
+function rdots(n,c){let s='';for(let i=1;i<=5;i++)s+=`<span class="rp" style="background:${i<=n?c:''}"></span>`;return s;}
+function fill(el,frac,c){const p=Math.max(0,Math.min(1,frac))*100;el.style.background=`linear-gradient(90deg,${c} ${p}%,#232c40 ${p}%)`;}
 
 function buildAlloc(){
   const box=document.getElementById('alloc'); box.innerHTML='';
   buckets.forEach(b=>{
-    const c=css(b.v);
-    const el=document.createElement('div'); el.className='aitem';
+    const c=css(b.v), el=document.createElement('div'); el.className='aitem';
     el.innerHTML=`
       <div class="ahead">
         <span class="aname"><span class="dot" style="background:${c}"></span>${b.name}</span>
-        <span><span class="apct" id="pct-${b.id}" style="color:${c}">0%</span> <span class="amoney" id="mon-${b.id}"></span></span>
+        <span style="text-align:right"><span class="apct" id="pct-${b.id}" style="color:${c}">0%</span><br><span class="amoney" id="mon-${b.id}"></span></span>
       </div>
-      <input class="aslider" type="range" min="0" max="100" step="1" id="sl-${b.id}" value="${state.weights[b.id]}">
-      <div class="meta">
-        <span class="risk">Riesgo ${riskDots(b.risk,c)}</span>
-      </div>
-      <div class="ex"><b>Ej.:</b> ${b.ex} <span style="color:${c}">— ${b.note}</span></div>`;
+      <input type="range" min="0" max="100" step="1" id="sl-${b.id}" value="${state.weights[b.id]}" style="margin-top:10px">
+      <div class="ex"><b>${b.note}</b><br>${b.ex} <span class="rdots">${rdots(b.risk,c)}</span></div>`;
     box.appendChild(el);
-    el.querySelector('input').oninput=e=>{state.weights[b.id]=+e.target.value;render();};
+    el.querySelector('input').addEventListener('input',e=>{state.weights[b.id]=+e.target.value;render();});
   });
 }
-function riskDots(n,c){let s='';for(let i=1;i<=5;i++)s+=`<span class="rp" style="background:${i<=n?c:''}"></span>`;return s;}
 
 function render(){
+  // flujo mensual
+  const ingreso=num('ingresoNum'), gastos=num('gAlq')+num('gCom')+num('gImp'), cuotas=num('cuotas');
+  const exced=ingreso-gastos-cuotas, pct=num('pctInv');
+  const inv=Math.max(0,Math.round(exced*pct/100));
+  document.getElementById('cuotasVal').textContent=fmt.format(cuotas);
+  document.getElementById('pctVal').textContent=pct+'%';
+  document.getElementById('fIng').textContent=fmt.format(ingreso);
+  document.getElementById('fGastos').textContent='− '+fmt.format(gastos);
+  document.getElementById('fCuo').textContent='− '+fmt.format(cuotas);
+  document.getElementById('fExced').textContent=fmt.format(exced);
+  document.getElementById('fExced').style.color=exced<0?css('--bad'):css('--tx');
+  document.getElementById('fPctLbl').textContent=`Para invertir (${pct}% del excedente)`;
+  document.getElementById('fInv').textContent=fmt.format(inv)+' /mes';
+  document.getElementById('fNote').innerHTML = exced<0
+    ? `<span style="color:var(--bad)">⚠ Tus gastos + cuotas superan el ingreso. Bajá gastos, cuotas, o subí el ingreso.</span>`
+    : `≈ <b style="color:var(--tx)">${fmt.format(inv*12)}</b> al año a la cartera. El resto del excedente (${fmt.format(Math.max(0,exced-inv))}/mes) queda de colchón.`;
+  fill(document.getElementById('cuotas'),cuotas/800000,css('--warn'));
+  fill(document.getElementById('pctInv'),pct/100,css('--idx'));
+
+  // asignacion
   const w=state.weights, sum=Object.values(w).reduce((a,b)=>a+b,0)||1;
-  const inv=Math.round(state.ingreso*state.tasa/100);
-  // stats de ingreso/tasa
-  document.getElementById('tasaLbl').textContent=state.tasa+'%';
-  document.getElementById('invMes').innerHTML=fmt.format(inv)+'<span class="mini">/mes</span>';
-  document.getElementById('invAnio').textContent='≈ '+fmt.format(inv*12)+' al año';
-  // barra + items
   const bar=document.getElementById('bar'); bar.innerHTML='';
   const leg=document.getElementById('legend'); leg.innerHTML='';
   let risk=0,grow=0,ret=0;
   buckets.forEach(b=>{
-    const c=css(b.v), frac=w[b.id]/sum, pct=frac*100;
-    const seg=document.createElement('span'); seg.style.width=pct+'%'; seg.style.background=c; bar.appendChild(seg);
+    const c=css(b.v), frac=w[b.id]/sum, pc=frac*100;
+    const sp=document.createElement('span'); sp.style.width=pc+'%'; sp.style.background=c; bar.appendChild(sp);
     const p=document.getElementById('pct-'+b.id), m=document.getElementById('mon-'+b.id), sl=document.getElementById('sl-'+b.id);
-    if(p){p.textContent=pct.toFixed(0)+'%'; m.textContent=fmt.format(inv*frac)+'/mes'; if(+sl.value!==w[b.id])sl.value=w[b.id];}
-    if(pct>=3){const d=document.createElement('div');d.innerHTML=`<span class="dot" style="background:${c}"></span>${b.name.split(' (')[0]} ${pct.toFixed(0)}%`;leg.appendChild(d);}
+    if(p){p.textContent=pc.toFixed(0)+'%'; m.textContent=fmt.format(inv*frac)+'/mes'; if(+sl.value!==w[b.id])sl.value=w[b.id]; fill(sl,w[b.id]/100,c);}
+    if(pc>=3){const d=document.createElement('div');d.innerHTML=`<span class="dot" style="background:${c}"></span>${b.name.split(' ·')[0].split(' (')[0]} ${pc.toFixed(0)}%`;leg.appendChild(d);}
     risk+=frac*b.risk; grow+=frac*b.grow; ret+=frac*b.ret;
   });
-  // medidores
-  document.getElementById('riesgoV').textContent=risk.toFixed(1)+' / 5';
-  document.getElementById('riesgoM').style.width=(risk/5*100)+'%';
-  document.getElementById('riesgoM').style.background=risk<2.2?css('--good'):risk<3.6?css('--warn'):css('--bad');
-  document.getElementById('growV').textContent=grow.toFixed(1)+' / 5';
+  document.getElementById('riesgoV').textContent=risk.toFixed(1)+'/5';
+  const rM=document.getElementById('riesgoM'); rM.style.width=(risk/5*100)+'%';
+  rM.style.background=risk<2.2?css('--good'):risk<3.6?css('--warn'):css('--bad');
+  document.getElementById('growV').textContent=grow.toFixed(1)+'/5';
   document.getElementById('growM').style.width=(grow/5*100)+'%';
   document.getElementById('retV').textContent='~'+ret.toFixed(1)+'%';
   document.getElementById('sumaRaw').textContent=sum;
-  // plan mudanza (jul -> dic 2026 = 6 meses)
-  const obj=+document.getElementById('objMud').value||0, meses=6, porMes=Math.ceil(obj/meses);
-  document.getElementById('mudPlan').innerHTML=`Faltan ~<b>6 meses</b> a fin de 2026. Para juntar ${fmt.format(obj)} guardá <b>${fmt.format(porMes)}/mes</b> en Liquidez/Dólar. `+
-    (porMes>inv? `<span style="color:var(--warn)">⚠ Es más que tu ahorro actual (${fmt.format(inv)}): subí la tasa de ahorro o bajá el objetivo hasta cubrir la mudanza antes de invertir en riesgo.</span>`
-              : `<span style="color:var(--good)">✓ Entra dentro de tu ahorro; el excedente (${fmt.format(inv-porMes)}/mes) puede ir a la cartera.</span>`);
+
+  // mudanza
+  const obj=num('objMud'), ya=num('objYa'), falta=Math.max(0,obj-ya), porMes=Math.ceil(falta/6);
+  const capacidad=Math.max(0,exced);
+  document.getElementById('mudPlan').innerHTML = falta<=0
+    ? `<span style="color:var(--good)">✓ Mudanza cubierta.</span> Con <b>${fmt.format(ya)}</b> ahorrados y un costo de ${fmt.format(obj)}, te sobran <b>${fmt.format(ya-obj)}</b>. Ese excedente —más lo que tus FCI siguen rindiendo— ya puede ir a la cartera.`
+    : `Ya tenés <b>${fmt.format(ya)}</b>. Faltan <b>${fmt.format(falta)}</b> → ~${fmt.format(porMes)}/mes en 6 meses. `+
+      (porMes>capacidad?`<span style="color:var(--warn)">⚠ Es más que tu excedente (${fmt.format(capacidad)}): ajustá gastos/cuotas o el objetivo antes de arriesgar.</span>`
+                       :`<span style="color:var(--good)">✓ Entra en tu excedente.</span>`);
 }
 
 buildAlloc(); render();
