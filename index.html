@@ -116,12 +116,13 @@
     <div class="panel">
       <h2>Ingreso neto mensual</h2>
       <div class="seg" id="ingreso">
-        <button data-v="1220000" class="on">$1.220.000 (hoy)</button>
-        <button data-v="2000000">$2.000.000 (objetivo)</button>
+        <button data-v="1000000">$1.000.000</button>
+        <button data-v="1500000" class="on">$1.500.000</button>
+        <button data-v="2000000">$2.000.000</button>
       </div>
       <div class="field">
-        <label>O ingresá un monto</label>
-        <div class="money"><span class="mini">$</span><input type="number" id="ingresoNum" value="1220000" step="10000"></div>
+        <label>O ingresá tu monto real</label>
+        <div class="money"><span class="mini">$</span><input type="number" id="ingresoNum" value="1500000" step="10000"></div>
       </div>
     </div>
 
@@ -133,8 +134,8 @@
       </div>
       <div class="stat" style="margin-top:12px">
         <div class="k">Disponible para invertir</div>
-        <div class="v" id="invMes">$244.000<span class="mini">/mes</span></div>
-        <div class="mini" id="invAnio">≈ $2.928.000 al año</div>
+        <div class="v" id="invMes">$300.000<span class="mini">/mes</span></div>
+        <div class="mini" id="invAnio">≈ $3.600.000 al año</div>
       </div>
     </div>
   </div>
@@ -194,7 +195,7 @@
         Recién cuando el fondo de mudanza esté cubierto, mandás el excedente a la cartera.</p>
       </div>
       <div class="step s1">
-        <b>Etapa 1 · 2027, con sueldo a $2.000.000</b>
+        <b>Etapa 1 · Cuando tu ingreso crezca</b>
         <p><b>Fondo de emergencia:</b> 3–6 meses de gastos (ahora suben por el alquiler) líquidos en pesos/dólar.<br>
         Con el colchón listo, <b>automatizá</b>: apenas cobrás, comprás tu cartera según perfil (dollar-cost averaging, siempre el mismo día). No intentes adivinar el mercado.<br>
         Rebalanceá cada 6–12 meses para volver a tus %.</p>
@@ -262,7 +263,7 @@ function preset(perfil, plazo){
   return a;
 }
 
-const state = {perfil:'moderado',plazo:'largo',ingreso:1220000,tasa:20,weights:preset('moderado','largo')};
+const state = {perfil:'moderado',plazo:'largo',ingreso:1500000,tasa:20,weights:preset('moderado','largo')};
 
 function seg(id,key,cb){
   document.querySelectorAll('#'+id+' button').forEach(b=>b.onclick=()=>{
