@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Cartera Nacho 2026 · Tablero de asignación</title>
+<meta name="robots" content="noindex, nofollow, noarchive">
+<title>Acceso privado</title>
 <style>
   :root{
     --bg:#0b1120; --panel:#131c2e; --panel2:#0f1725; --line:#233149;
@@ -81,9 +82,44 @@
   .disc{color:#7d8ca6;font-size:11.6px;line-height:1.6;margin-top:26px;border-top:1px solid var(--line);padding-top:16px}
   a{color:#8ab4ff}
   .mini{font-size:11.5px;color:var(--mut)}
+  #lock{position:fixed;inset:0;background:var(--bg);z-index:999;padding:20px;align-items:center;justify-content:center;display:none}
+  body.locked{overflow:hidden}
+  body.locked #lock{display:flex}
+  body.locked .wrap{display:none}
+  #lock .box{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:14px;padding:26px;max-width:340px;width:100%;text-align:center}
+  #lock h3{margin:0 0 6px;font-size:18px}
+  #lock p{margin:0 0 16px;color:var(--mut);font-size:13px}
+  #lock input{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--tx);border-radius:9px;padding:11px;font-size:15px;text-align:center}
+  #lock button{margin-top:12px;width:100%;background:#2a3a58;border:1px solid var(--line);color:#fff;border-radius:9px;padding:11px;cursor:pointer;font-weight:600}
+  #lock .err{color:var(--bad);font-size:12.5px;margin-top:10px;min-height:16px}
 </style>
 </head>
-<body>
+<body class="locked">
+<div id="lock">
+  <div class="box">
+    <h3>🔒 Acceso privado</h3>
+    <p>Ingresá la clave para ver el tablero.</p>
+    <input type="password" id="lockPass" placeholder="Clave" autocomplete="current-password">
+    <button id="lockBtn">Entrar</button>
+    <div class="err" id="lockErr"></div>
+  </div>
+</div>
+<script>
+(function(){
+  var HASH='2781c4f5029f1441a1ce459ecc1c91291055af76bac12bdcded422b836e9cd5c';
+  var KEY='cnf_unlock_v1';
+  if(!window.crypto||!crypto.subtle){document.body.classList.remove('locked');return;}
+  if(localStorage.getItem(KEY)==='1'){document.body.classList.remove('locked');}
+  async function sha(s){var b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return Array.from(new Uint8Array(b)).map(function(x){return x.toString(16).padStart(2,'0');}).join('');}
+  async function tryPass(){
+    var inp=document.getElementById('lockPass'),err=document.getElementById('lockErr');
+    if((await sha(inp.value))===HASH){document.body.classList.remove('locked');try{localStorage.setItem(KEY,'1');}catch(e){}}
+    else{err.textContent='Clave incorrecta';inp.value='';inp.focus();}
+  }
+  document.getElementById('lockBtn').onclick=tryPass;
+  document.getElementById('lockPass').addEventListener('keydown',function(e){if(e.key==='Enter')tryPass();});
+})();
+</script>
 <div class="wrap">
   <h1>🎯 Cartera Nacho · Tablero 2026</h1>
   <p class="sub">Mové los sliders para repartir tu cartera. Elegí <b>perfil</b> y <b>plazo</b> para cargar una asignación sugerida, y ajustá el ingreso y la tasa de ahorro para ver cuántos pesos van a cada cosa.</p>
