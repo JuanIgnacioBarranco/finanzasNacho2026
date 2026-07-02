@@ -185,6 +185,18 @@
     border-radius:11px;padding:12px;cursor:pointer;font-weight:700;font-family:var(--body);font-size:14px}
   #lock .err{color:var(--bad);font-size:12.5px;margin-top:11px;min-height:16px}
 
+  /* proyeccion */
+  .projbig{background:linear-gradient(120deg,rgba(246,178,58,.13),rgba(139,92,246,.08));border:1px solid rgba(246,178,58,.28);border-radius:14px;padding:18px}
+  .projbig .pb-k{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.7px;font-weight:600}
+  .projbig .pb-v{font-family:var(--disp);font-weight:700;font-size:36px;letter-spacing:-1px;color:var(--gold);margin-top:5px;line-height:1.05}
+  .projbig .pb-sub{font-size:12.5px;color:#b9c2d4;margin-top:9px}
+  .chartwrap{background:var(--panel2);border:1px solid var(--line);border-radius:13px;padding:14px 12px 8px}
+  #projSvg{width:100%;height:auto;display:block}
+  .chartleg{display:flex;flex-wrap:wrap;gap:15px;margin-top:8px;padding:0 6px;font-size:11.5px;color:var(--mut)}
+  .chartleg span{display:flex;align-items:center;gap:6px}
+  .chartleg i{width:12px;height:12px;border-radius:3px;display:inline-block}
+  .chartleg i.dash{width:15px;height:0;border-top:2px dashed var(--mut);border-radius:0}
+  @media(max-width:520px){.projbig .pb-v{font-size:28px}}
   @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -401,6 +413,47 @@
     </div>
   </section>
 
+  <!-- PROYECCION -->
+  <section class="panel" style="margin-top:15px">
+    <div class="phead">
+      <span class="ic ic-good"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 6l-9.5 9.5-5-5L1 18"/><path d="M17 6h6v6"/></svg></span>
+      <div><h2>Proyección de tu cartera</h2><div class="sub">Interés compuesto sobre tu aporte mensual · en pesos de hoy (real)</div></div>
+    </div>
+
+    <div class="grid g2" style="margin-bottom:16px">
+      <div class="field">
+        <div class="slabel"><label style="margin:0">Años a proyectar</label><span class="v" id="projYrsV">20 años</span></div>
+        <input type="range" id="projYrs" min="1" max="35" value="20">
+      </div>
+      <div class="field">
+        <label>Capital inicial ya invertido (opcional)</label>
+        <div class="money"><span class="cur">$</span><input type="number" id="projP0" value="0" step="100000"></div>
+      </div>
+    </div>
+
+    <div class="projbig">
+      <div class="pb-k">Valor proyectado · escenario esperado · <span id="pbYrs">20</span> años</div>
+      <div class="pb-v" id="pbVal">–</div>
+      <div class="pb-sub" id="pbSub"></div>
+    </div>
+
+    <div class="kpis" style="margin-top:14px">
+      <div class="kpi"><div class="k">Total aportado</div><div class="kpi-v" id="pAport">–</div></div>
+      <div class="kpi"><div class="k">Ganancia · compuesto</div><div class="kpi-v" id="pGain" style="color:var(--good)">–</div></div>
+      <div class="kpi"><div class="k">Retorno real anual</div><div class="kpi-v" id="pRet">–</div></div>
+    </div>
+
+    <div class="chartwrap" style="margin-top:16px">
+      <svg id="projSvg" viewBox="0 0 680 300" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Gráfico de proyección de la cartera con interés compuesto"></svg>
+      <div class="chartleg">
+        <span><i style="background:var(--gold)"></i>Esperado</span>
+        <span><i style="background:rgba(246,178,58,.28)"></i>Rango pesimista–optimista</span>
+        <span><i class="dash"></i>Solo lo aportado</span>
+      </div>
+    </div>
+    <div class="mini" style="margin-top:11px">El rango refleja la incertidumbre: más BTC/temáticos = banda más ancha. En plazos cortos el pesimista puede dar negativo — es real, por eso el riesgo va con plata que no tocás pronto. Ilustrativo, en poder de compra de hoy; no es garantía.</div>
+  </section>
+
   <p class="disc">
     <b>Aviso:</b> tablero <b>educativo y personal</b>, no es asesoramiento financiero ni recomendación de compra. Porcentajes, retornos y ejemplos son ilustrativos: rendimientos pasados no garantizan futuros y toda inversión puede perder valor (BTC y ETFs temáticos tienen volatilidad alta). *El retorno es un promedio ponderado grosero en USD/real, no una proyección. Antes de invertir montos relevantes, informate por vos mismo y, si podés, consultá con un asesor matriculado (idóneo CNV). Tickers y broker se nombran solo como ejemplo.
   </p>
@@ -442,9 +495,11 @@ function seg(id,cb){document.querySelectorAll('#'+id+' button').forEach(b=>b.onc
   document.querySelectorAll('#'+id+' button').forEach(x=>x.classList.remove('on'));
   b.classList.add('on'); cb(b.dataset.v);});}
 seg('perfil',v=>{state.perfil=v;state.weights=preset(v,state.plazo);buildAlloc();render();});
-seg('plazo', v=>{state.plazo=v;state.weights=preset(state.perfil,v);buildAlloc();render();});
+seg('plazo', v=>{state.plazo=v;state.weights=preset(state.perfil,v);
+  document.getElementById('projYrs').value={corto:3,mediano:8,largo:20}[v];
+  buildAlloc();render();});
 seg('ingreso',v=>{document.getElementById('ingresoNum').value=v;render();});
-['ingresoNum','gAlq','gCom','gImp','cuotas','pctInv','objMud','objYa'].forEach(id=>document.getElementById(id).addEventListener('input',render));
+['ingresoNum','gAlq','gCom','gImp','cuotas','pctInv','objMud','objYa','projYrs','projP0'].forEach(id=>document.getElementById(id).addEventListener('input',render));
 document.getElementById('reset').onclick=()=>{state.weights=preset(state.perfil,state.plazo);buildAlloc();render();};
 
 function rdots(n,c){let s='';for(let i=1;i<=5;i++)s+=`<span class="rp" style="background:${i<=n?c:''}"></span>`;return s;}
@@ -464,6 +519,33 @@ function buildAlloc(){
     box.appendChild(el);
     el.querySelector('input').addEventListener('input',e=>{state.weights[b.id]=+e.target.value;render();});
   });
+}
+
+function fvSeries(P0,C,R,months){const rm=Math.pow(1+R,1/12)-1,a=[P0];let v=P0;for(let t=1;t<=months;t++){v=v*(1+rm)+C;a.push(v);}return a;}
+function fmtShort(v){const s=v<0?'-':'';v=Math.abs(v);if(v>=1e6)return s+'$'+(v/1e6).toFixed(v>=1e7?0:1)+'M';if(v>=1e3)return s+'$'+(v/1e3).toFixed(0)+'k';return s+'$'+Math.round(v);}
+function drawProj(C,P0,Re,Ro,Rp,years){
+  const months=Math.max(1,Math.round(years*12));
+  const esp=fvSeries(P0,C,Re,months),opt=fvSeries(P0,C,Ro,months),pes=fvSeries(P0,C,Rp,months);
+  const aport=[];for(let t=0;t<=months;t++)aport.push(P0+C*t);
+  const fE=esp[months],fO=opt[months],fP=pes[months],tot=P0+C*months,gain=fE-tot;
+  document.getElementById('pbVal').textContent=fmt.format(Math.round(fE));
+  document.getElementById('pbYrs').textContent=years;
+  document.getElementById('pbSub').innerHTML=`Rango: <b style="color:#cfd8e8">${fmt.format(Math.round(fP))}</b> (pesimista) → <b style="color:#cfd8e8">${fmt.format(Math.round(fO))}</b> (optimista)`;
+  document.getElementById('pAport').textContent=fmt.format(Math.round(tot));
+  document.getElementById('pGain').textContent=fmt.format(Math.round(gain));
+  document.getElementById('pRet').textContent='~'+(Re*100).toFixed(1)+'%';
+  const W=680,H=300,pl=54,pr=14,ptop=14,pbot=28;
+  const maxY=Math.max(fO,tot,1)*1.06;
+  const X=t=>pl+(t/months)*(W-pl-pr), Y=v=>ptop+(1-v/maxY)*(H-ptop-pbot);
+  const line=arr=>arr.map((v,t)=>X(t).toFixed(1)+','+Y(v).toFixed(1)).join(' ');
+  let band='M'+X(0).toFixed(1)+','+Y(pes[0]).toFixed(1);
+  for(let t=1;t<=months;t++)band+='L'+X(t).toFixed(1)+','+Y(pes[t]).toFixed(1);
+  for(let t=months;t>=0;t--)band+='L'+X(t).toFixed(1)+','+Y(opt[t]).toFixed(1);
+  band+='Z';
+  let g='';for(let i=0;i<=2;i++){const val=maxY*i/2,yy=Y(val);
+    g+=`<line x1="${pl}" y1="${yy.toFixed(1)}" x2="${W-pr}" y2="${yy.toFixed(1)}" stroke="#212a3d"/><text x="${pl-8}" y="${(yy+4).toFixed(1)}" text-anchor="end" fill="#5c6474" font-size="11">${fmtShort(val)}</text>`;}
+  let xl='';[0,Math.round(years/2),years].forEach(yr=>{xl+=`<text x="${X(yr*12).toFixed(1)}" y="${H-7}" text-anchor="middle" fill="#5c6474" font-size="11">${yr}a</text>`;});
+  document.getElementById('projSvg').innerHTML=g+`<path d="${band}" fill="rgba(246,178,58,.14)"/><polyline points="${line(aport)}" fill="none" stroke="#6b7488" stroke-width="1.6" stroke-dasharray="5 5"/><polyline points="${line(esp)}" fill="none" stroke="${css('--gold')}" stroke-width="2.6" stroke-linejoin="round"/><circle cx="${X(months).toFixed(1)}" cy="${Y(fE).toFixed(1)}" r="4.5" fill="${css('--gold')}"/>`+xl;
 }
 
 function render(){
@@ -515,6 +597,13 @@ function render(){
     : `Ya tenés <b>${fmt.format(ya)}</b>. Faltan <b>${fmt.format(falta)}</b> → ~${fmt.format(porMes)}/mes en 6 meses. `+
       (porMes>capacidad?`<span style="color:var(--warn)">⚠ Es más que tu excedente (${fmt.format(capacidad)}): ajustá gastos/cuotas o el objetivo antes de arriesgar.</span>`
                        :`<span style="color:var(--good)">✓ Entra en tu excedente.</span>`);
+
+  // proyeccion (dinamica segun todo el dashboard)
+  const years=Math.max(1,Math.round(num('projYrs')));
+  document.getElementById('projYrsV').textContent=years+(years===1?' año':' años');
+  fill(document.getElementById('projYrs'),(years-1)/34,css('--good'));
+  const spread=Math.max(0.015,risk*1.8/100);
+  drawProj(inv,num('projP0'),ret/100,ret/100+spread,ret/100-spread,years);
 }
 
 buildAlloc(); render();
