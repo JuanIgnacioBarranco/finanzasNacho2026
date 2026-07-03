@@ -439,45 +439,51 @@
     </div>
   </section>
 
-  <!-- PROYECCION -->
+  <!-- PROYECCION MONTE CARLO -->
   <section class="panel" style="margin-top:15px">
     <div class="phead">
       <span class="ic ic-good"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 6l-9.5 9.5-5-5L1 18"/><path d="M17 6h6v6"/></svg></span>
-      <div><h2>Proyección de tu cartera</h2><div class="sub">Interés compuesto sobre tu aporte mensual · en pesos de hoy (real)</div></div>
+      <div><h2>Proyección Monte Carlo</h2><div class="sub">500 simulaciones con volatilidad real · pesos de hoy</div></div>
     </div>
 
-    <div class="grid g2" style="margin-bottom:16px">
-      <div class="field">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px">
+      <div class="field" style="margin-top:0">
         <div class="slabel"><label style="margin:0">Años a proyectar</label><span class="v" id="projYrsV">20 años</span></div>
         <input type="range" id="projYrs" min="1" max="35" value="20">
       </div>
-      <div class="field">
-        <label>Capital inicial ya invertido (opcional)</label>
+      <div class="field" style="margin-top:0">
+        <label>Capital inicial (opcional)</label>
         <div class="money"><span class="cur">$</span><input type="number" id="projP0" value="0" step="100000"></div>
+      </div>
+      <div class="field" style="margin-top:0">
+        <label>Meta · valor objetivo</label>
+        <div class="money"><span class="cur">$</span><input type="number" id="projGoal" value="50000000" step="1000000"></div>
+        <div class="mini" id="goalUsd" style="margin-top:5px"></div>
       </div>
     </div>
 
     <div class="projbig">
-      <div class="pb-k">Valor proyectado · escenario esperado · <span id="pbYrs">20</span> años</div>
-      <div class="pb-v" id="pbVal">–</div>
+      <div class="pb-k">Escenario típico · mediana (p50) · <span id="pbYrs">20</span> años</div>
+      <div class="pb-v" id="pbVal">…</div>
       <div class="pb-sub" id="pbSub"></div>
     </div>
 
     <div class="kpis" style="margin-top:14px">
       <div class="kpi"><div class="k">Total aportado</div><div class="kpi-v" id="pAport">–</div></div>
-      <div class="kpi"><div class="k">Ganancia · compuesto</div><div class="kpi-v" id="pGain" style="color:var(--good)">–</div></div>
-      <div class="kpi"><div class="k">Retorno real anual</div><div class="kpi-v" id="pRet">–</div></div>
+      <div class="kpi"><div class="k">Prob. de llegar a la meta</div><div class="kpi-v" id="pProb" style="color:var(--good)">–</div></div>
+      <div class="kpi"><div class="k">Retorno / volatilidad</div><div class="kpi-v" id="pRet" style="font-size:16px">–</div></div>
     </div>
 
     <div class="chartwrap" style="margin-top:16px">
-      <svg id="projSvg" viewBox="0 0 680 300" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Gráfico de proyección de la cartera con interés compuesto"></svg>
+      <svg id="projSvg" viewBox="0 0 680 300" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Simulación Monte Carlo de la cartera con banda de percentiles"></svg>
       <div class="chartleg">
-        <span><i style="background:var(--gold)"></i>Esperado</span>
-        <span><i style="background:rgba(246,178,58,.28)"></i>Rango pesimista–optimista</span>
-        <span><i class="dash"></i>Solo lo aportado</span>
+        <span><i style="background:var(--gold)"></i>Mediana (p50)</span>
+        <span><i style="background:rgba(246,178,58,.28)"></i>Rango p10–p90</span>
+        <span><i class="dash"></i>Aportado</span>
+        <span><i class="dash" style="border-color:var(--good)"></i>Meta</span>
       </div>
     </div>
-    <div class="mini" style="margin-top:11px">El rango refleja la incertidumbre: más BTC/temáticos = banda más ancha. En plazos cortos el pesimista puede dar negativo — es real, por eso el riesgo va con plata que no tocás pronto. Ilustrativo, en poder de compra de hoy; no es garantía.</div>
+    <div class="mini" style="margin-top:11px">Cada corrida son <b>500 trayectorias</b> con retorno esperado + volatilidad por activo (BTC ~70%, índices ~15%, temáticos ~24%, liquidez ~1%) y correlación 0,4, modelo lognormal. La <b>mediana (p50)</b> es el escenario “típico”; el rango p10–p90 muestra suerte mala/buena. En poder de compra de hoy — ilustrativo, no garantía.</div>
   </section>
 
   <p class="disc">
@@ -591,7 +597,7 @@ seg('plazo', v=>{state.plazo=v;state.weights=preset(state.perfil,v);
   document.getElementById('projYrs').value={corto:3,mediano:8,largo:20}[v];
   buildAlloc();render();});
 seg('ingreso',v=>{document.getElementById('ingresoNum').value=v;render();});
-['ingresoNum','gAlq','gCom','gImp','cuotas','pctInv','objMud','objYa','projYrs','projP0'].forEach(id=>document.getElementById(id).addEventListener('input',render));
+['ingresoNum','gAlq','gCom','gImp','cuotas','pctInv','objMud','objYa','projYrs','projP0','projGoal'].forEach(id=>document.getElementById(id).addEventListener('input',render));
 document.getElementById('reset').onclick=()=>{state.weights=preset(state.perfil,state.plazo);buildAlloc();render();};
 
 function rdots(n,c){let s='';for(let i=1;i<=5;i++)s+=`<span class="rp" style="background:${i<=n?c:''}"></span>`;return s;}
@@ -615,29 +621,48 @@ function buildAlloc(){
 
 function fvSeries(P0,C,R,months){const rm=Math.pow(1+R,1/12)-1,a=[P0];let v=P0;for(let t=1;t<=months;t++){v=v*(1+rm)+C;a.push(v);}return a;}
 function fmtShort(v){const s=v<0?'-':'';v=Math.abs(v);if(v>=1e6)return s+'$'+(v/1e6).toFixed(v>=1e7?0:1)+'M';if(v>=1e3)return s+'$'+(v/1e3).toFixed(0)+'k';return s+'$'+Math.round(v);}
-function drawProj(C,P0,Re,Ro,Rp,years){
-  const months=Math.max(1,Math.round(years*12));
-  const esp=fvSeries(P0,C,Re,months),opt=fvSeries(P0,C,Ro,months),pes=fvSeries(P0,C,Rp,months);
-  const aport=[];for(let t=0;t<=months;t++)aport.push(P0+C*t);
-  const fE=esp[months],fO=opt[months],fP=pes[months],tot=P0+C*months,gain=fE-tot;
-  document.getElementById('pbVal').textContent=fmt.format(Math.round(fE));
+const VOL={liq:0.01,idx:0.15,btc:0.70,tem:0.24};
+function portfolioVol(w,sum){const rho=0.4,k=['liq','idx','btc','tem'];let v=0;
+  k.forEach(a=>k.forEach(b=>{v+=(w[a]/sum)*(w[b]/sum)*VOL[a]*VOL[b]*(a===b?1:rho);}));
+  return Math.sqrt(Math.max(0,v));}
+function randn(){let u=0,v=0;while(!u)u=Math.random();while(!v)v=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(6.2831853*v);}
+let _mcTimer=null;
+function scheduleMC(a){clearTimeout(_mcTimer);_mcTimer=setTimeout(()=>drawMC(a),110);}
+function drawMC(a){
+  const C=a.C,P0=a.P0,muA=a.muA,volA=a.volA,years=a.years,goal=a.goal;
+  const months=Math.max(1,Math.round(years*12)),N=500;
+  const sLog=Math.sqrt(Math.log(1+(volA*volA)/Math.pow(1+muA,2))), mLog=Math.log(1+muA)-0.5*sLog*sLog;
+  const mm=mLog/12, sm=sLog/Math.sqrt(12);
+  const step=Math.max(1,Math.round(months/70)), sM=[];
+  for(let t=0;t<=months;t+=step)sM.push(t); if(sM[sM.length-1]!==months)sM.push(months);
+  const cols=sM.map(()=>new Float64Array(N)), finals=new Float64Array(N); let reached=0;
+  for(let p=0;p<N;p++){let v=P0,si=0;
+    for(let t=0;t<=months;t++){ if(t>0)v=v*Math.exp(mm+sm*randn())+C; if(si<sM.length&&t===sM[si]){cols[si][p]=v;si++;} }
+    finals[p]=v; if(v>=goal)reached++;
+  }
+  const pctF=(arr,q)=>{const b=Float64Array.from(arr).sort();return b[Math.min(b.length-1,Math.floor(q*b.length))];};
+  const p10=[],p50=[],p90=[]; cols.forEach(c=>{const b=Float64Array.from(c).sort();const gg=q=>b[Math.min(b.length-1,Math.floor(q*b.length))];p10.push(gg(.1));p50.push(gg(.5));p90.push(gg(.9));});
+  const med=pctF(finals,.5),lo=pctF(finals,.1),hi=pctF(finals,.9),tot=P0+C*months,prob=100*reached/N;
+  document.getElementById('pbVal').textContent=fmt.format(Math.round(med));
   document.getElementById('pbYrs').textContent=years;
-  document.getElementById('pbSub').innerHTML=`Rango: <b style="color:#cfd8e8">${fmt.format(Math.round(fP))}</b> (pesimista) → <b style="color:#cfd8e8">${fmt.format(Math.round(fO))}</b> (optimista)`;
+  document.getElementById('pbSub').innerHTML=`Rango probable (p10–p90): <b style="color:#cfd8e8">${fmt.format(Math.round(lo))}</b> → <b style="color:#cfd8e8">${fmt.format(Math.round(hi))}</b>`;
   document.getElementById('pAport').textContent=fmt.format(Math.round(tot));
-  document.getElementById('pGain').textContent=fmt.format(Math.round(gain));
-  document.getElementById('pRet').textContent='~'+(Re*100).toFixed(1)+'%';
+  const pp=document.getElementById('pProb'); pp.textContent=Math.round(prob)+'%';
+  pp.style.color=prob>=66?css('--good'):prob>=33?css('--warn'):css('--bad');
+  document.getElementById('pRet').innerHTML=`~${(muA*100).toFixed(1)}% <span class="mut" style="font-size:12px">± ${(volA*100).toFixed(0)}%</span>`;
   const W=680,H=300,pl=54,pr=14,ptop=14,pbot=28;
-  const maxY=Math.max(fO,tot,1)*1.06;
-  const X=t=>pl+(t/months)*(W-pl-pr), Y=v=>ptop+(1-v/maxY)*(H-ptop-pbot);
-  const line=arr=>arr.map((v,t)=>X(t).toFixed(1)+','+Y(v).toFixed(1)).join(' ');
-  let band='M'+X(0).toFixed(1)+','+Y(pes[0]).toFixed(1);
-  for(let t=1;t<=months;t++)band+='L'+X(t).toFixed(1)+','+Y(pes[t]).toFixed(1);
-  for(let t=months;t>=0;t--)band+='L'+X(t).toFixed(1)+','+Y(opt[t]).toFixed(1);
+  const aport=sM.map(t=>P0+C*t);
+  const maxY=Math.max(p90[p90.length-1],tot,goal,1)*1.06;
+  const X=i=>pl+(sM[i]/months)*(W-pl-pr), Y=v=>ptop+(1-Math.max(0,v)/maxY)*(H-ptop-pbot);
+  const poly=arr=>arr.map((v,i)=>X(i).toFixed(1)+','+Y(v).toFixed(1)).join(' ');
+  let band='M'+X(0).toFixed(1)+','+Y(p10[0]).toFixed(1);
+  for(let i=1;i<sM.length;i++)band+='L'+X(i).toFixed(1)+','+Y(p10[i]).toFixed(1);
+  for(let i=sM.length-1;i>=0;i--)band+='L'+X(i).toFixed(1)+','+Y(p90[i]).toFixed(1);
   band+='Z';
-  let g='';for(let i=0;i<=2;i++){const val=maxY*i/2,yy=Y(val);
-    g+=`<line x1="${pl}" y1="${yy.toFixed(1)}" x2="${W-pr}" y2="${yy.toFixed(1)}" stroke="#212a3d"/><text x="${pl-8}" y="${(yy+4).toFixed(1)}" text-anchor="end" fill="#5c6474" font-size="11">${fmtShort(val)}</text>`;}
-  let xl='';[0,Math.round(years/2),years].forEach(yr=>{xl+=`<text x="${X(yr*12).toFixed(1)}" y="${H-7}" text-anchor="middle" fill="#5c6474" font-size="11">${yr}a</text>`;});
-  document.getElementById('projSvg').innerHTML=g+`<path d="${band}" fill="rgba(246,178,58,.14)"/><polyline points="${line(aport)}" fill="none" stroke="#6b7488" stroke-width="1.6" stroke-dasharray="5 5"/><polyline points="${line(esp)}" fill="none" stroke="${css('--gold')}" stroke-width="2.6" stroke-linejoin="round"/><circle cx="${X(months).toFixed(1)}" cy="${Y(fE).toFixed(1)}" r="4.5" fill="${css('--gold')}"/>`+xl;
+  let g='';for(let i=0;i<=2;i++){const val=maxY*i/2,yy=Y(val);g+=`<line x1="${pl}" y1="${yy.toFixed(1)}" x2="${W-pr}" y2="${yy.toFixed(1)}" stroke="#212a3d"/><text x="${pl-8}" y="${(yy+4).toFixed(1)}" text-anchor="end" fill="#5c6474" font-size="11">${fmtShort(val)}</text>`;}
+  let xl='';[0,Math.round(years/2),years].forEach(yr=>{xl+=`<text x="${(pl+(yr*12/months)*(W-pl-pr)).toFixed(1)}" y="${H-7}" text-anchor="middle" fill="#5c6474" font-size="11">${yr}a</text>`;});
+  const gy=Y(goal), goalLine=goal>0?`<line x1="${pl}" y1="${gy.toFixed(1)}" x2="${W-pr}" y2="${gy.toFixed(1)}" stroke="${css('--good')}" stroke-width="1.4" stroke-dasharray="4 4"/><text x="${W-pr}" y="${(gy-5).toFixed(1)}" text-anchor="end" fill="${css('--good')}" font-size="11">meta ${fmtShort(goal)}</text>`:'';
+  document.getElementById('projSvg').innerHTML=g+`<path d="${band}" fill="rgba(246,178,58,.15)"/><polyline points="${poly(aport)}" fill="none" stroke="#6b7488" stroke-width="1.6" stroke-dasharray="5 5"/><polyline points="${poly(p50)}" fill="none" stroke="${css('--gold')}" stroke-width="2.6" stroke-linejoin="round"/>`+goalLine+xl;
 }
 
 function render(){
@@ -690,12 +715,13 @@ function render(){
       (porMes>capacidad?`<span style="color:var(--warn)">⚠ Es más que tu excedente (${fmt.format(capacidad)}): ajustá gastos/cuotas o el objetivo antes de arriesgar.</span>`
                        :`<span style="color:var(--good)">✓ Entra en tu excedente.</span>`);
 
-  // proyeccion (dinamica segun todo el dashboard)
+  // proyeccion Monte Carlo (dinamica segun todo el dashboard)
   const years=Math.max(1,Math.round(num('projYrs')));
   document.getElementById('projYrsV').textContent=years+(years===1?' año':' años');
   fill(document.getElementById('projYrs'),(years-1)/34,css('--good'));
-  const spread=Math.max(0.015,risk*1.8/100);
-  drawProj(inv,num('projP0'),ret/100,ret/100+spread,ret/100-spread,years);
+  const goal=num('projGoal');
+  document.getElementById('goalUsd').textContent=PRICES.mep?'≈ US$'+Math.round(goal/PRICES.mep).toLocaleString('es-AR')+' a MEP de hoy':'';
+  scheduleMC({C:inv,P0:num('projP0'),muA:ret/100,volA:portfolioVol(w,sum),years,goal});
 
   // ordenes del mes (precios en vivo)
   renderOrders(inv,w,sum);
