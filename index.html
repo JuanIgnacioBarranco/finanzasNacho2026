@@ -185,6 +185,19 @@
     border-radius:11px;padding:12px;cursor:pointer;font-weight:700;font-family:var(--body);font-size:14px}
   #lock .err{color:var(--bad);font-size:12.5px;margin-top:11px;min-height:16px}
 
+  /* ordenes en vivo */
+  .pxstrip{display:flex;flex-wrap:wrap;gap:14px;padding:11px 13px;background:var(--panel2);border:1px solid var(--line);border-radius:11px;margin-bottom:14px;font-size:12.5px;color:#c2cbdb}
+  .pxstrip b{font-family:var(--disp);color:var(--tx)}
+  .pxstrip span{display:flex;gap:6px;align-items:center}
+  .ordrow{padding:11px 0;border-top:1px solid var(--line)}
+  .ordrow:first-child{border-top:0}
+  .ordtop{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+  .ordtop .l{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;font-family:var(--disp)}
+  .ordtop .l .mut{font-weight:400;font-family:var(--body)}
+  .ordtop .m{font-family:var(--disp);font-weight:600;font-size:14.5px;white-space:nowrap}
+  .ordsub{font-size:11.5px;color:var(--mut);margin-top:3px;font-family:var(--disp)}
+  .ordsub .up{color:var(--good)} .ordsub .dn{color:var(--bad)}
+  .btn:disabled{opacity:.55;cursor:default}
   /* proyeccion */
   .projbig{background:linear-gradient(120deg,rgba(246,178,58,.13),rgba(139,92,246,.08));border:1px solid rgba(246,178,58,.28);border-radius:14px;padding:18px}
   .projbig .pb-k{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.7px;font-weight:600}
@@ -367,6 +380,19 @@
     </section>
   </div>
 
+  <!-- ORDENES EN VIVO -->
+  <section class="panel" style="margin-top:15px">
+    <div class="phead">
+      <span class="ic ic-gold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg></span>
+      <div><h2>Órdenes del mes · precios en vivo</h2><div class="sub">Cuántos nominales comprar en IOL con tu aporte</div></div>
+      <button class="btn" id="pxBtn" style="margin-left:auto">↻ Actualizar precios</button>
+    </div>
+    <div class="pxstrip" id="pxStrip"></div>
+    <div id="orders"></div>
+    <div class="mini" id="ordFoot" style="margin-top:12px"></div>
+    <div class="mini" style="margin-top:7px;color:var(--faint)">Precios de referencia: CEDEARs (BYMA) vía data912, Dólar MEP vía dolarapi, BTC vía CoinGecko. Pueden diferir del precio de ejecución en IOL. El reparto dentro de cada bloque (SPY/QQQ, y los ETFs temáticos) es un default; lo hacemos configurable más adelante.</div>
+  </section>
+
   <!-- PLAN -->
   <section class="panel" style="margin-top:15px">
     <div class="phead">
@@ -491,6 +517,72 @@ function preset(perfil,plazo){
 
 const state={perfil:'moderado',plazo:'largo',weights:preset('moderado','largo')};
 
+// --- precios en vivo (feature 1) ---
+const PX_SRC={mep:'https://dolarapi.com/v1/dolares/bolsa',btc:'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd',ced:'https://data912.com/live/arg_cedears'};
+const TMAP={
+  idx:[{t:'SPY',w:.55,name:'S&P 500'},{t:'QQQ',w:.45,name:'Nasdaq 100'}],
+  btc:[{t:'IBIT',w:1,name:'ETF Bitcoin'}],
+  tem:[{t:'GLD',w:.40,name:'Oro'},{t:'SMH',w:.30,name:'Semis/IA'},{t:'CIBR',w:.15,name:'Ciberseg.'},{t:'URA',w:.15,name:'Uranio'}],
+};
+let PRICES={mep:null,btcUsd:null,cedears:null,ts:null};
+try{const _c=JSON.parse(localStorage.getItem('cnf_prices')||'null'); if(_c)PRICES=_c;}catch(e){}
+function bucketColor(id){return {liq:'--liq',idx:'--idx',btc:'--btc',tem:'--tem'}[id];}
+
+async function loadPrices(){
+  const btn=document.getElementById('pxBtn'); if(btn){btn.disabled=true;btn.textContent='Actualizando…';}
+  const o={};
+  await Promise.allSettled([
+    fetch(PX_SRC.mep).then(r=>r.json()).then(d=>{o.mep=d.venta;}),
+    fetch(PX_SRC.btc).then(r=>r.json()).then(d=>{o.btcUsd=d.bitcoin.usd;}),
+    fetch(PX_SRC.ced).then(r=>r.json()).then(a=>{const m={};a.forEach(x=>{if(x&&x.symbol)m[x.symbol]=x;});o.cedears=m;}),
+  ]);
+  if(o.mep!=null)PRICES.mep=o.mep;
+  if(o.btcUsd!=null)PRICES.btcUsd=o.btcUsd;
+  if(o.cedears)PRICES.cedears=o.cedears;
+  PRICES.ts=new Date().toISOString();
+  try{localStorage.setItem('cnf_prices',JSON.stringify(PRICES));}catch(e){}
+  if(btn){btn.disabled=false;btn.textContent='↻ Actualizar precios';}
+  render();
+}
+
+function ordRow(tk,name,n,monto,px,pct,color,note){
+  const pc=pct!=null?`<span class="${pct>=0?'up':'dn'}">${pct>=0?'+':''}${(+pct).toFixed(1)}%</span>`:'';
+  const sub=[px?`${fmt.format(px)} ${pc}`:null,n!=null?`comprar <b>${n}</b> nom.`:null,note||null].filter(Boolean).join(' · ');
+  return `<div class="ordrow"><div class="ordtop"><span class="l"><span class="dot" style="background:${color}"></span>${tk}<span class="mut"> ${name}</span></span><span class="m">${fmt.format(Math.round(monto))}</span></div><div class="ordsub">${sub}</div></div>`;
+}
+
+function renderOrders(inv,w,sum){
+  const box=document.getElementById('orders'); if(!box)return;
+  const ced=PRICES.cedears||{}, mep=PRICES.mep, btcU=PRICES.btcUsd, hasPx=Object.keys(ced).length>0;
+  document.getElementById('pxStrip').innerHTML=
+    (mep?`<span>Dólar MEP <b>${fmt.format(mep)}</b></span>`:'')+
+    (btcU?`<span>BTC <b>US$${Math.round(btcU).toLocaleString('es-AR')}</b></span>`:'')+
+    (PRICES.ts?`<span class="mut">actualizado ${new Date(PRICES.ts).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}</span>`:`<span class="mut">sin datos aún</span>`);
+  const liqP=inv*(w.liq/sum);
+  const items=[];
+  ['idx','btc','tem'].forEach(bid=>{const bp=inv*(w[bid]/sum);
+    TMAP[bid].forEach(o=>{items.push({t:o.t,name:o.name,bid,px:ced[o.t]?ced[o.t].c:0,pct:ced[o.t]?ced[o.t].pct_change:null,target:bp*o.w,n:0});});});
+  // pass 1: floor por objetivo | pass 2: greedy relleno de nominales enteros minimizando efectivo ocioso
+  let pool=items.reduce((s,i)=>s+i.target,0);
+  items.forEach(i=>{if(i.px>0){i.n=Math.floor(i.target/i.px);pool-=i.n*i.px;}});
+  for(let g=0;g<5000;g++){let best=null,bs=0;
+    items.forEach(i=>{if(i.px>0&&i.px<=pool){const u=i.target-i.n*i.px;if(u>bs){bs=u;best=i;}}});
+    if(!best)break; best.n++; pool-=best.px;}
+  let rows='',invested=liqP;
+  if(liqP>0)rows+=ordRow('FCI $','money market',null,liqP,null,null,css('--liq'),'mantener · rescatable 24-48h');
+  items.forEach(i=>{const c=css(bucketColor(i.bid)),monto=i.n*i.px; invested+=monto;
+    if(i.px<=0){rows+=ordRow(i.t,i.name,null,i.target,null,null,c,'precio no disponible');return;}
+    if(i.n===0){rows+=ordRow(i.t,i.name,0,0,i.px,i.pct,c,`juntá para 1 nominal (${fmt.format(i.px)})`);return;}
+    let note=''; if(i.bid==='btc'&&mep&&btcU)note=`≈ ${((monto/mep)/btcU).toFixed(5)} BTC si lo hacés en exchange`;
+    rows+=ordRow(i.t,i.name,i.n,monto,i.px,i.pct,c,note);
+  });
+  box.innerHTML=rows;
+  const rem=Math.max(0,inv-invested);
+  document.getElementById('ordFoot').innerHTML=hasPx
+    ? `Con tu aporte de <b>${fmt.format(inv)}</b> se colocan ~<b>${fmt.format(Math.round(invested))}</b> (incluye ${fmt.format(Math.round(liqP))} a money market). Sobran ~${fmt.format(Math.round(rem))} por redondeo → se acumulan para el mes que viene.`
+    : `Tocá “Actualizar precios” para ver cuántos nominales comprar.`;
+}
+
 function seg(id,cb){document.querySelectorAll('#'+id+' button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('#'+id+' button').forEach(x=>x.classList.remove('on'));
   b.classList.add('on'); cb(b.dataset.v);});}
@@ -604,9 +696,13 @@ function render(){
   fill(document.getElementById('projYrs'),(years-1)/34,css('--good'));
   const spread=Math.max(0.015,risk*1.8/100);
   drawProj(inv,num('projP0'),ret/100,ret/100+spread,ret/100-spread,years);
+
+  // ordenes del mes (precios en vivo)
+  renderOrders(inv,w,sum);
 }
 
-buildAlloc(); render();
+document.getElementById('pxBtn').onclick=loadPrices;
+buildAlloc(); render(); loadPrices();
 </script>
 </body>
 </html>
