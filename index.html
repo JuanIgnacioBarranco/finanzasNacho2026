@@ -198,6 +198,21 @@
   .ordsub{font-size:11.5px;color:var(--mut);margin-top:3px;font-family:var(--disp)}
   .ordsub .up{color:var(--good)} .ordsub .dn{color:var(--bad)}
   .btn:disabled{opacity:.55;cursor:default}
+  /* metas de vida */
+  .goalsgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+  .goal{background:var(--panel2);border:1px solid var(--line);border-radius:13px;padding:14px}
+  .goalhead{display:flex;gap:8px;align-items:center;margin-bottom:11px}
+  .gname{flex:1;background:transparent;border:0;border-bottom:1px solid var(--line2);color:var(--tx);font-family:var(--disp);font-weight:600;font-size:14px;padding:3px 0}
+  .gname:focus{outline:none;border-color:var(--gold)}
+  .gdel{background:transparent;border:1px solid var(--line);color:var(--mut);border-radius:7px;width:26px;height:26px;cursor:pointer;font-size:15px;line-height:1;flex:none}
+  .gdel:hover{color:var(--bad);border-color:var(--bad)}
+  .goalinputs{display:grid;grid-template-columns:1.4fr .8fr;gap:8px;margin-bottom:11px}
+  .goalinputs label{font-size:10.5px}
+  .gres{border-top:1px solid var(--line);padding-top:11px;min-height:64px}
+  .grow1{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .gbadge{font-family:var(--disp);font-weight:700;font-size:13px;border:1px solid;border-radius:7px;padding:2px 8px}
+  .gmed{font-size:11.5px;margin-top:7px}
+  .gadv{font-size:12px;margin-top:7px;color:#c1cbdd;line-height:1.45}
   /* proyeccion */
   .projbig{background:linear-gradient(120deg,rgba(246,178,58,.13),rgba(139,92,246,.08));border:1px solid rgba(246,178,58,.28);border-radius:14px;padding:18px}
   .projbig .pb-k{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.7px;font-weight:600}
@@ -486,6 +501,17 @@
     <div class="mini" style="margin-top:11px">Cada corrida son <b>500 trayectorias</b> con retorno esperado + volatilidad por activo (BTC ~70%, índices ~15%, temáticos ~24%, liquidez ~1%) y correlación 0,4, modelo lognormal. La <b>mediana (p50)</b> es el escenario “típico”; el rango p10–p90 muestra suerte mala/buena. En poder de compra de hoy — ilustrativo, no garantía.</div>
   </section>
 
+  <!-- METAS DE VIDA -->
+  <section class="panel" style="margin-top:15px">
+    <div class="phead">
+      <span class="ic ic-tem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></span>
+      <div><h2>Metas de vida</h2><div class="sub">¿Llegás con tu plan actual? · probabilidad Monte Carlo</div></div>
+      <button class="btn" id="goalAdd" style="margin-left:auto">+ Meta</button>
+    </div>
+    <div id="goalsList" class="goalsgrid"></div>
+    <div class="mini" style="margin-top:11px;color:var(--faint)">Cada meta se evalúa con el mismo motor Monte Carlo y tu aporte/cartera actuales. Montos en US$ (convertidos a pesos de hoy con el MEP en vivo). El “aporte extra” es a valor esperado; la probabilidad es sobre 400 simulaciones. Edad base 27 años.</div>
+  </section>
+
   <p class="disc">
     <b>Aviso:</b> tablero <b>educativo y personal</b>, no es asesoramiento financiero ni recomendación de compra. Porcentajes, retornos y ejemplos son ilustrativos: rendimientos pasados no garantizan futuros y toda inversión puede perder valor (BTC y ETFs temáticos tienen volatilidad alta). *El retorno es un promedio ponderado grosero en USD/real, no una proyección. Antes de invertir montos relevantes, informate por vos mismo y, si podés, consultá con un asesor matriculado (idóneo CNV). Tickers y broker se nombran solo como ejemplo.
   </p>
@@ -665,6 +691,65 @@ function drawMC(a){
   document.getElementById('projSvg').innerHTML=g+`<path d="${band}" fill="rgba(246,178,58,.15)"/><polyline points="${poly(aport)}" fill="none" stroke="#6b7488" stroke-width="1.6" stroke-dasharray="5 5"/><polyline points="${poly(p50)}" fill="none" stroke="${css('--gold')}" stroke-width="2.6" stroke-linejoin="round"/>`+goalLine+xl;
 }
 
+// --- metas de vida (feature 4) ---
+const BASE_AGE=27, BASE_YEAR=2026;
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let goals=[
+  {name:'Viaje', usd:3500, years:2},
+  {name:'Entrada depto', usd:35000, years:6},
+  {name:'Libertad financiera', usd:250000, years:25},
+];
+let LAST={inv:0,muA:0.05,volA:0.12,P0:0};
+let _gTimer=null;
+function scheduleGoals(){clearTimeout(_gTimer);_gTimer=setTimeout(computeGoals,130);}
+function runGoalsMC(C,P0,muA,volA,maxY){
+  const N=400,maxM=maxY*12;
+  const sLog=Math.sqrt(Math.log(1+(volA*volA)/Math.pow(1+muA,2))),mLog=Math.log(1+muA)-0.5*sLog*sLog,mm=mLog/12,sm=sLog/Math.sqrt(12);
+  const byY=[]; for(let y=0;y<=maxY;y++)byY.push(new Float64Array(N));
+  for(let p=0;p<N;p++){let v=P0; byY[0][p]=v;
+    for(let t=1;t<=maxM;t++){v=v*Math.exp(mm+sm*randn())+C; if(t%12===0)byY[t/12][p]=v;}}
+  return byY;
+}
+function buildGoals(){
+  const box=document.getElementById('goalsList'); box.innerHTML='';
+  goals.forEach((g,i)=>{
+    const el=document.createElement('div'); el.className='goal';
+    el.innerHTML=`<div class="goalhead"><input class="gname" id="gn-${i}" value="${esc(g.name)}"><button class="gdel" id="gx-${i}" title="Quitar">×</button></div>
+      <div class="goalinputs"><div><label>Monto (US$)</label><div class="money"><span class="cur">US$</span><input type="number" id="gu-${i}" value="${g.usd}" step="5000"></div></div><div><label>En (años)</label><div class="money"><input type="number" id="gy-${i}" value="${g.years}" min="1" max="40" step="1"></div></div></div>
+      <div class="gres" id="gres-${i}"></div>`;
+    box.appendChild(el);
+    document.getElementById('gn-'+i).addEventListener('input',e=>{goals[i].name=e.target.value;});
+    document.getElementById('gu-'+i).addEventListener('input',e=>{goals[i].usd=+e.target.value||0;computeGoals();});
+    document.getElementById('gy-'+i).addEventListener('input',e=>{goals[i].years=Math.max(1,Math.min(40,+e.target.value||1));computeGoals();});
+    document.getElementById('gx-'+i).onclick=()=>{goals.splice(i,1);buildGoals();computeGoals();};
+  });
+}
+function computeGoals(){
+  if(!document.getElementById('goalsList'))return;
+  const inv=LAST.inv,muA=LAST.muA,volA=LAST.volA,P0=LAST.P0, mep=PRICES.mep||1500;
+  const maxY=Math.min(40,Math.max(1,...goals.map(g=>g.years||1)));
+  const byY=runGoalsMC(inv,P0,muA,volA,maxY), N=byY[0].length;
+  const medBy=byY.map(a=>{const s=Float64Array.from(a).sort();return s[Math.floor(0.5*N)];});
+  const rm=Math.pow(1+muA,1/12)-1;
+  goals.forEach((g,i)=>{
+    const el=document.getElementById('gres-'+i); if(!el)return;
+    const y=Math.max(1,Math.min(maxY,g.years||1)), goalP=g.usd*mep;
+    let cnt=0; const arr=byY[y]; for(let k=0;k<N;k++)if(arr[k]>=goalP)cnt++;
+    const prob=Math.round(100*cnt/N), median=medBy[y];
+    let hit=null; for(let yy=1;yy<=maxY;yy++){if(medBy[yy]>=goalP){hit=yy;break;}}
+    const months=y*12, gP0=P0*Math.pow(1+rm,months), ann=rm!==0?((Math.pow(1+rm,months)-1)/rm):months;
+    const reqC=Math.max(0,(goalP-gP0)/ann), extra=reqC-inv;
+    const col=prob>=66?'--good':prob>=33?'--warn':'--bad';
+    let adv;
+    if(prob>=66) adv=`✓ En camino`+(hit&&hit<=y?` · la mediana la cruza ~${BASE_YEAR+hit} (a los ${BASE_AGE+hit})`:'');
+    else if(extra>0) adv=`Sumá ~<b>${fmt.format(Math.round(extra))}/mes</b> para llegar (a valor esperado)`+(hit?` · o esperá a ~${BASE_YEAR+hit}`:'');
+    else adv=hit?`La mediana la cruza ~${BASE_YEAR+hit} (a los ${BASE_AGE+hit})`:`Difícil con el plan actual`;
+    el.innerHTML=`<div class="grow1"><span class="gbadge" style="color:var(${col});border-color:var(${col})">${prob}% prob.</span><span class="mut">meta ${fmt.format(Math.round(goalP))}</span></div>
+      <div class="gmed mut">Mediana a los ${BASE_AGE+y} (${BASE_YEAR+y}): <b style="color:#cfd8e8">${fmt.format(Math.round(median))}</b></div>
+      <div class="gadv">${adv}</div>`;
+  });
+}
+
 function render(){
   // flujo mensual
   const ingreso=num('ingresoNum'), gastos=num('gAlq')+num('gCom')+num('gImp'), cuotas=num('cuotas');
@@ -719,15 +804,20 @@ function render(){
   const years=Math.max(1,Math.round(num('projYrs')));
   document.getElementById('projYrsV').textContent=years+(years===1?' año':' años');
   fill(document.getElementById('projYrs'),(years-1)/34,css('--good'));
-  const goal=num('projGoal');
+  const goal=num('projGoal'), volA=portfolioVol(w,sum);
   document.getElementById('goalUsd').textContent=PRICES.mep?'≈ US$'+Math.round(goal/PRICES.mep).toLocaleString('es-AR')+' a MEP de hoy':'';
-  scheduleMC({C:inv,P0:num('projP0'),muA:ret/100,volA:portfolioVol(w,sum),years,goal});
+  scheduleMC({C:inv,P0:num('projP0'),muA:ret/100,volA,years,goal});
+
+  // metas de vida (feature 4)
+  LAST={inv,muA:ret/100,volA,P0:num('projP0')}; scheduleGoals();
 
   // ordenes del mes (precios en vivo)
   renderOrders(inv,w,sum);
 }
 
 document.getElementById('pxBtn').onclick=loadPrices;
+document.getElementById('goalAdd').onclick=()=>{goals.push({name:'Nueva meta',usd:20000,years:5});buildGoals();computeGoals();};
+buildGoals();
 buildAlloc(); render(); loadPrices();
 </script>
 </body>
