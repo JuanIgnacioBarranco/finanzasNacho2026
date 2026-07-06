@@ -213,6 +213,18 @@
   .gbadge{font-family:var(--disp);font-weight:700;font-size:13px;border:1px solid;border-radius:7px;padding:2px 8px}
   .gmed{font-size:11.5px;margin-top:7px}
   .gadv{font-size:12px;margin-top:7px;color:#c1cbdd;line-height:1.45}
+  /* rebalanceo */
+  .rebalin{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:14px}
+  .rebalin label{display:flex;align-items:center;gap:6px;font-size:11.5px}
+  .rbrow{display:flex;align-items:center;gap:10px;margin:5px 0}
+  .rblab{width:64px;font-size:11.5px;color:var(--mut);flex:none;font-family:var(--disp)}
+  .bar.mini{height:20px;flex:1}
+  .rbitem{padding:9px 0;border-top:1px solid var(--line)}
+  .rbitem:first-child{border-top:0}
+  .rbtop{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:13.5px;font-weight:600;font-family:var(--disp)}
+  .rbtop .l{display:flex;align-items:center;gap:8px}
+  .rbtop .act{white-space:nowrap}
+  .rbsub{font-size:11.5px;margin-top:3px;font-family:var(--disp)}
   /* proyeccion */
   .projbig{background:linear-gradient(120deg,rgba(246,178,58,.13),rgba(139,92,246,.08));border:1px solid rgba(246,178,58,.28);border-radius:14px;padding:18px}
   .projbig .pb-k{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.7px;font-weight:600}
@@ -394,6 +406,22 @@
       </div>
     </section>
   </div>
+
+  <!-- CARTERA REAL / REBALANCEO -->
+  <section class="panel" style="margin-top:15px">
+    <div class="phead">
+      <span class="ic ic-idx"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></svg></span>
+      <div><h2>Tu cartera hoy · rebalanceo</h2><div class="sub">Cuánto tenés vs tu objetivo · qué comprar o vender</div></div>
+    </div>
+    <div class="rebalin">
+      <div><label><span class="dot" style="background:var(--liq)"></span>Liquidez</label><div class="money"><span class="cur">$</span><input type="number" id="hLiq" value="0" step="50000"></div></div>
+      <div><label><span class="dot" style="background:var(--idx)"></span>Índices</label><div class="money"><span class="cur">$</span><input type="number" id="hIdx" value="0" step="50000"></div></div>
+      <div><label><span class="dot" style="background:var(--btc)"></span>Bitcoin</label><div class="money"><span class="cur">$</span><input type="number" id="hBtc" value="0" step="50000"></div></div>
+      <div><label><span class="dot" style="background:var(--tem)"></span>Temáticos</label><div class="money"><span class="cur">$</span><input type="number" id="hTem" value="0" step="50000"></div></div>
+    </div>
+    <div id="rebalBars" style="margin-bottom:12px"></div>
+    <div id="rebal"></div>
+  </section>
 
   <!-- ORDENES EN VIVO -->
   <section class="panel" style="margin-top:15px">
@@ -691,6 +719,32 @@ function drawMC(a){
   document.getElementById('projSvg').innerHTML=g+`<path d="${band}" fill="rgba(246,178,58,.15)"/><polyline points="${poly(aport)}" fill="none" stroke="#6b7488" stroke-width="1.6" stroke-dasharray="5 5"/><polyline points="${poly(p50)}" fill="none" stroke="${css('--gold')}" stroke-width="2.6" stroke-linejoin="round"/>`+goalLine+xl;
 }
 
+// --- cartera real + rebalanceo (feature 2) ---
+let holdings={liq:0,idx:0,btc:0,tem:0};
+try{const _h=JSON.parse(localStorage.getItem('cnf_holdings')||'null'); if(_h)holdings=Object.assign(holdings,_h);}catch(e){}
+function saveHoldings(){try{localStorage.setItem('cnf_holdings',JSON.stringify(holdings));}catch(e){}}
+function miniBar(pctMap,label){let seg='';['liq','idx','btc','tem'].forEach(b=>{const p=(pctMap[b]||0)*100;if(p>0.3)seg+=`<span style="width:${p}%;background:${css(bucketColor(b))}"></span>`;});return `<div class="rbrow"><span class="rblab">${label}</span><div class="bar mini">${seg}</div></div>`;}
+function renderRebalance(w,sum){
+  const box=document.getElementById('rebal'); if(!box)return;
+  const K=['liq','idx','btc','tem'], NAME={liq:'Liquidez',idx:'Índices',btc:'Bitcoin',tem:'Temáticos'};
+  const tp={}; K.forEach(b=>tp[b]=w[b]/sum);
+  const cur={}; K.forEach(b=>cur[b]=holdings[b]||0);
+  const total=K.reduce((s,b)=>s+cur[b],0), barsBox=document.getElementById('rebalBars');
+  if(total<=0){barsBox.innerHTML=''; box.innerHTML=`<div class="mini" style="color:var(--faint)">Cargá cuánto tenés hoy en cada bloque (sacá los totales de IOL) para ver tu desvío y qué rebalancear.</div>`; return;}
+  const curPct={}; K.forEach(b=>curPct[b]=cur[b]/total);
+  barsBox.innerHTML=miniBar(curPct,'Hoy')+miniBar(tp,'Objetivo');
+  let rows=`<div class="mini" style="margin-bottom:10px">Total cartera hoy: <b style="color:var(--tx)">${fmt.format(Math.round(total))}</b>${PRICES.mep?` · US$${Math.round(total/PRICES.mep).toLocaleString('es-AR')}`:''}</div>`, drift=0;
+  K.forEach(b=>{const tv=total*tp[b], d=tv-cur[b], dp=(curPct[b]-tp[b])*100; drift+=Math.abs(curPct[b]-tp[b]);
+    const c=css(bucketColor(b)), thr=total*0.005;
+    const act=d>thr?`<span style="color:var(--good)">comprar ${fmt.format(Math.round(d))}</span>`:(d<-thr?`<span style="color:var(--bad)">vender ${fmt.format(Math.round(-d))}</span>`:`<span class="mut">alineado</span>`);
+    rows+=`<div class="rbitem"><div class="rbtop"><span class="l"><span class="dot" style="background:${c}"></span>${NAME[b]}</span><span class="act">${act}</span></div><div class="rbsub mut">hoy ${(curPct[b]*100).toFixed(0)}% (${fmt.format(Math.round(cur[b]))}) · objetivo ${(tp[b]*100).toFixed(0)}% · desvío <b style="color:${Math.abs(dp)>=5?css('--warn'):'#c1cbdd'}">${(dp>=0?'+':'')+dp.toFixed(0)}pp</b></div></div>`;
+  });
+  const turn=drift/2*100;
+  box.innerHTML=rows+`<div class="mini" style="margin-top:12px">`+(turn<3
+    ?`<span style="color:var(--good)">✓ Estás alineado</span> (desvío ${turn.toFixed(0)}%). No hace falta rebalancear.`
+    :`Desvío total <b style="color:var(--tx)">${turn.toFixed(0)}%</b>. Rebalanceá con esas órdenes, o —para no vender ni gatillar impuestos— dirigí tus próximos aportes a los bloques por debajo del objetivo.`)+`</div>`;
+}
+
 // --- metas de vida (feature 4) ---
 const BASE_AGE=27, BASE_YEAR=2026;
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -811,12 +865,16 @@ function render(){
   // metas de vida (feature 4)
   LAST={inv,muA:ret/100,volA,P0:num('projP0')}; scheduleGoals();
 
+  // cartera real + rebalanceo (feature 2)
+  renderRebalance(w,sum);
+
   // ordenes del mes (precios en vivo)
   renderOrders(inv,w,sum);
 }
 
 document.getElementById('pxBtn').onclick=loadPrices;
 document.getElementById('goalAdd').onclick=()=>{goals.push({name:'Nueva meta',usd:20000,years:5});buildGoals();computeGoals();};
+[['hLiq','liq'],['hIdx','idx'],['hBtc','btc'],['hTem','tem']].forEach(([id,b])=>{const el=document.getElementById(id);el.value=holdings[b]||0;el.addEventListener('input',e=>{holdings[b]=+e.target.value||0;saveHoldings();const s=Object.values(state.weights).reduce((a,c)=>a+c,0);renderRebalance(state.weights,s);});});
 buildGoals();
 buildAlloc(); render(); loadPrices();
 </script>
