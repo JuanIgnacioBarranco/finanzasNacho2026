@@ -191,6 +191,16 @@
   .pxstrip span{display:flex;gap:6px;align-items:center}
   .ordrow{padding:11px 0;border-top:1px solid var(--line)}
   .ordrow:first-child{border-top:0}
+  /* tabla comparativa de escenarios: scrollea sola en horizontal para que la pagina nunca lo haga */
+  .cmpwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:12px}
+  .cmp{border-collapse:collapse;width:100%;min-width:580px;font-size:12.5px}
+  .cmp th,.cmp td{padding:9px 10px;text-align:right;border-top:1px solid var(--line);white-space:nowrap}
+  .cmp th{color:var(--mut);font-weight:500;font-size:10.5px;letter-spacing:.4px;text-transform:uppercase;border-top:0}
+  .cmp th:first-child,.cmp td:first-child{text-align:left;white-space:normal}
+  .cmp td{font-family:var(--disp)}
+  .cmp tr.now td{background:rgba(246,178,58,.07);color:var(--tx);font-weight:600}
+  .cmp tr.now td:first-child{box-shadow:inset 2px 0 0 var(--gold)}
+  .cmp .oy{color:var(--faint);font-size:11px;font-weight:400;font-family:'IBM Plex Sans',system-ui,sans-serif}
   .ordtop{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
   .ordtop .l{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;font-family:var(--disp)}
   .ordtop .l .mut{font-weight:400;font-family:var(--body)}
@@ -558,6 +568,13 @@
       <button class="btn" id="scnUndo">↺ Deshacer carga</button>
     </div>
     <div id="scnList" style="margin-top:15px"></div>
+
+    <div class="field" style="margin-top:22px">
+      <div class="slabel"><label style="margin:0">Comparar todo a</label><span class="v" id="cmpYrsVal">20 años</span></div>
+      <input type="range" id="cmpYrs" min="1" max="35" value="20">
+      <div class="mini">Todas las filas se calculan al mismo horizonte. Si cada una usara el suyo, los números no serían comparables entre sí.</div>
+    </div>
+    <div class="cmpwrap"><table class="cmp" id="cmpTable"></table></div>
   </section>
 
   <p class="disc">
@@ -944,7 +961,7 @@ function render(){
   scheduleMC({C:f.inv,P0:f.P0,muA:f.ret/100,volA:f.volA,years:f.years,goal:f.goal});
 
   // metas de vida (feature 4)
-  LAST={inv:f.inv,muA:f.ret/100,volA:f.volA,P0:f.P0}; scheduleGoals();
+  LAST={inv:f.inv,muA:f.ret/100,volA:f.volA,P0:f.P0}; scheduleGoals(); scheduleCompare();
 
   // cartera real + rebalanceo (feature 2)
   renderRebalance(w,sum);
@@ -1118,12 +1135,56 @@ function renderScenarios(){
     : list.map((s,i)=>`<div class="ordrow"><div class="ordtop"><span class="l">${esc(s.name)}</span><span class="m mut" style="font-weight:400;font-size:11.5px">${fmtScnDate(s.ts)}</span></div><div class="ordsub" style="display:flex;gap:8px;margin-top:8px"><button class="btn" data-act="load" data-idx="${i}">Cargá</button><button class="btn" data-act="del" data-idx="${i}">Borrá</button></div></div>`).join('');
   box.querySelectorAll('button[data-act]').forEach(b=>{ b.onclick=()=>(b.dataset.act==='load'?applyScenario:deleteScenario)(+b.dataset.idx); });
   refreshUndoBtn();
+  scheduleCompare();
 }
+
+// --- tabla comparativa de escenarios (mejora #5 tarea 3b) ---
+// TODAS las filas se calculan al mismo horizonte (#cmpYrs), ignorando a propósito el
+// projYrs propio de cada escenario. Si cada fila usara el suyo, los p50 serían peras
+// contra manzanas y la tabla no serviría para comparar, que es su única razón de ser.
+// El projYrs propio se muestra igual, como dato informativo.
+const _cmpMemo=new Map(), CMP_MEMO_MAX=60;
+function cmpYears(){ const el=document.getElementById('cmpYrs'); return Math.max(1,Math.round(el?+el.value||20:20)); }
+// La clave incluye el horizonte y el contenido del snapshot: cambiar cualquiera de los
+// dos recalcula, y un escenario intacto no vuelve a correr los 500 paths del Monte Carlo
+// (además de evitar que los números bailen en pantalla en cada re-render).
+function metricsFor(snap,years){
+  const key=years+'|'+JSON.stringify(snap);
+  if(_cmpMemo.has(key)) return _cmpMemo.get(key);
+  const f=computeFlow(snap);
+  const st=mcStats({C:f.inv,P0:f.P0,muA:f.ret/100,volA:f.volA,years,goal:f.goal});
+  const last=a=>a[a.length-1];
+  const m={exced:f.exced,inv:f.inv,p10:last(st.p10),p50:last(st.p50),p90:last(st.p90),prob:st.prob,ownYears:f.years};
+  if(_cmpMemo.size>=CMP_MEMO_MAX)_cmpMemo.clear();
+  _cmpMemo.set(key,m);
+  return m;
+}
+function cmpRow(name,m,cls){
+  return `<tr class="${cls}"><td>${esc(name)}<br><span class="oy">su plan: ${m.ownYears} ${m.ownYears===1?'año':'años'}</span></td>`+
+    `<td>${fmt.format(m.exced)}</td><td>${fmt.format(m.inv)}</td><td>${fmtShort(m.p50)}</td>`+
+    `<td>${fmtShort(m.p10)} – ${fmtShort(m.p90)}</td><td>${Math.round(m.prob)}%</td></tr>`;
+}
+function renderCompare(){
+  const t=document.getElementById('cmpTable'); if(!t) return;
+  const y=cmpYears(), lab=document.getElementById('cmpYrsVal');
+  if(lab) lab.textContent=y+(y===1?' año':' años');
+  let rows=`<tr><th>Escenario</th><th>Excedente/mes</th><th>Aporte/mes</th><th>Mediana a ${y}a</th><th>Rango p10–p90</th><th>Prob. meta</th></tr>`;
+  rows+=cmpRow('Actual',metricsFor(snapshot(),y),'now');
+  readScenarios().forEach(s=>{ if(s&&s.snap) rows+=cmpRow(s.name||'(sin nombre)',metricsFor(s.snap,y),''); });
+  t.innerHTML=rows;
+}
+let _cmpTimer=null;
+function scheduleCompare(){ clearTimeout(_cmpTimer); _cmpTimer=setTimeout(renderCompare,150); }
 
 document.getElementById('pxBtn').onclick=loadPrices;
 document.getElementById('goalAdd').onclick=()=>{goals.push({name:'Nueva meta',usd:20000,years:5});buildGoals();computeGoals();scheduleSave();};
 document.getElementById('scnSave').onclick=()=>{ saveScenario(document.getElementById('scnName').value); document.getElementById('scnName').value=''; };
 document.getElementById('scnUndo').onclick=undoLoad;
+// El horizonte de la tabla arranca en el projYrs de la pantalla y después va por su cuenta.
+(()=>{ const c=document.getElementById('cmpYrs'), p=document.getElementById('projYrs');
+  if(c&&p) c.value=p.value;
+  if(c) c.addEventListener('input',renderCompare);
+})();
 renderScenarios();
 Object.entries(HOLDINGS_ID2KEY).forEach(([id,b])=>{const el=document.getElementById(id);el.value=holdings[b]||0;el.addEventListener('input',e=>{holdings[b]=+e.target.value||0;const s=Object.values(state.weights).reduce((a,c)=>a+c,0);renderRebalance(state.weights,s);});});
 if(!bootState()){ buildGoals(); buildAlloc(); render(); }
