@@ -130,14 +130,14 @@ function loadSandbox() {
   };
   const ctx = vm.createContext(sandbox);
   vm.runInContext(logicSrc, ctx, { filename: 'index.html#logic' });
-  return { sandbox, documentStub };
+  return { sandbox, documentStub, ctx };
 }
 
 // ---------------------------------------------------------------------------
 // 1. readDOM() -> forma exacta del snapshot
 // ---------------------------------------------------------------------------
 section('readDOM(): forma exacta del snapshot', () => {
-  const { sandbox, documentStub } = loadSandbox();
+  const { sandbox, documentStub, ctx } = loadSandbox();
   const inputVals = {
     ingresoNum: 1500000, gAlq: 500000, gCom: 300000, gImp: 200000,
     cuotas: 250000, pctInv: 80,
@@ -155,6 +155,24 @@ section('readDOM(): forma exacta del snapshot', () => {
   const expectedWeights = sandbox.preset('moderado', 'largo');
   assert.deepStrictEqual(snap.weights, expectedWeights, 'weights debe ser copia de preset(moderado,largo)');
 
+  // Anti-aliasing de weights: si algún día vuelve `weights: state.weights` (sin el
+  // spread), este test tiene que reventar. `state` es un `const` de nivel top del
+  // bloque grande, así que no cuelga como propiedad de `sandbox` (eso solo pasa con
+  // `var`/`function`) — hay que pedirlo evaluando en el mismo `ctx` donde corrió
+  // logicSrc, que sí conserva el binding léxico vivo.
+  const globalState = vm.runInContext('state', ctx);
+  check(snap.weights !== globalState.weights, 'snap.weights debe ser un objeto distinto de state.weights (no una referencia)');
+  // La identidad de objeto no alcanza si igual comparten sub-propiedades por otro
+  // lado: lo que de verdad importa para los escenarios guardados es que mutar uno
+  // no pise al otro. Se muta y se restaura para no ensuciar el resto de la sección.
+  const origLiq = globalState.weights.liq;
+  snap.weights.liq = origLiq + 999;
+  check(globalState.weights.liq === origLiq, 'mutar snap.weights no debe afectar state.weights (aliasing detectado)');
+  snap.weights.liq = origLiq;
+  globalState.weights.liq = origLiq + 999;
+  check(snap.weights.liq === origLiq, 'mutar state.weights no debe afectar snap.weights (aliasing detectado)');
+  globalState.weights.liq = origLiq;
+
   assert.deepStrictEqual(Object.keys(snap.inputs).sort(), Object.keys(inputVals).sort(), 'las claves de inputs deben ser exactamente las pedidas');
   Object.keys(inputVals).forEach(id => {
     check(snap.inputs[id] === inputVals[id], 'inputs.' + id + ' esperado ' + inputVals[id] + ' fue ' + snap.inputs[id]);
@@ -171,6 +189,21 @@ section('readDOM(): forma exacta del snapshot', () => {
   // de por identidad de prototipo.
   check(Array.isArray(snap.goals) && snap.goals.length === expectedGoals.length, 'goals debe tener ' + expectedGoals.length + ' elementos');
   check(JSON.stringify(snap.goals) === JSON.stringify(expectedGoals), 'goals debe reflejar el array goals con {name,usd,years}: ' + JSON.stringify(snap.goals));
+
+  // Anti-aliasing de goals: mismo riesgo que weights. Si `goals.map(g=>({...}))`
+  // se cambiara por devolver los objetos originales del array `goals` global, todos
+  // los escenarios guardados terminarían compartiendo (y pisándose) las mismas metas.
+  const globalGoals = vm.runInContext('goals', ctx);
+  snap.goals.forEach((g, i) => {
+    check(g !== globalGoals[i], 'snap.goals[' + i + '] debe ser un objeto distinto de goals[' + i + '] (no una referencia)');
+  });
+  const origUsd = globalGoals[0].usd;
+  snap.goals[0].usd = origUsd + 12345;
+  check(globalGoals[0].usd === origUsd, 'mutar snap.goals[0] no debe afectar goals[0] global (aliasing detectado)');
+  snap.goals[0].usd = origUsd;
+  globalGoals[0].usd = origUsd + 12345;
+  check(snap.goals[0].usd === origUsd, 'mutar goals[0] global no debe afectar snap.goals[0] (aliasing detectado)');
+  globalGoals[0].usd = origUsd;
 
   check(Object.keys(snap).sort().join(',') === ['v', 'perfil', 'plazo', 'weights', 'inputs', 'goals'].sort().join(','),
     'el snapshot no debe tener claves extra ni faltantes');
