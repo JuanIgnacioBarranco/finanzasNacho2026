@@ -76,6 +76,11 @@ function makeClassList() {
   };
 }
 function makeElement(id) {
+  // _listeners: a diferencia del stub original (addEventListener era un no-op), acá
+  // los guardamos de verdad para poder disparar el evento "input" real sobre #cmpYrs
+  // (hallazgo #3: hay que probar el camino real del listener, no llamar renderCompare()
+  // a mano).
+  const listeners = {};
   return {
     id: id,
     value: '',
@@ -86,8 +91,9 @@ function makeElement(id) {
     disabled: false,
     onclick: null,
     classList: makeClassList(),
-    addEventListener() {},
-    removeEventListener() {},
+    addEventListener(type, fn) { (listeners[type] = listeners[type] || []).push(fn); },
+    removeEventListener(type, fn) { if (listeners[type]) listeners[type] = listeners[type].filter(f => f !== fn); },
+    dispatch(type) { (listeners[type] || []).slice().forEach(fn => fn({ target: this })); },
     appendChild() {},
     querySelector() { return makeElement(id + '>nested'); },
     querySelectorAll() { return []; },
@@ -375,10 +381,71 @@ section('horizonte por defecto: sin valor en #cmpYrs cae en 20, nunca en 0 ni Na
 });
 
 // ---------------------------------------------------------------------------
-console.log('');
-console.log(checks + ' aserciones corridas.');
-if (failures) {
-  console.log(failures + ' seccion(es) fallaron.');
-  process.exit(1);
+// 8. Horizonte por defecto: tiene que tomar el projYrs YA RESTAURADO desde
+//    cnf_state_v1, no el default estatico "20" del HTML (hallazgo #2 de la revision).
+//    El sync de #cmpYrs con #projYrs tiene que correr DESPUES de bootState().
+// ---------------------------------------------------------------------------
+section('horizonte por defecto: con un cnf_state_v1 guardado, arranca en el projYrs restaurado (no en el default estatico)', () => {
+  const savedState = snapCorto();
+  savedState.inputs = Object.assign({}, savedState.inputs, { projYrs: 12 });
+  const { sandbox } = loadSandbox({ cnf_state_v1: JSON.stringify(savedState) });
+  const y = sandbox.cmpYears();
+  check(y === 12, 'cmpYears() debe arrancar en el projYrs restaurado por bootState() (12), no en el default estatico del HTML (20), fue ' + y);
+});
+
+// ---------------------------------------------------------------------------
+// 9. Camino real del listener de #cmpYrs (hallazgo #3): arrastrar el slider dispara
+//    muchos eventos "input" nativos. Ninguno de ellos puede correr mcStats (500 paths
+//    por fila) sincronicamente -eso es lo que hacia el codigo viejo con
+//    addEventListener('input',renderCompare) directo-, tiene que quedar debounceado
+//    via scheduleCompare(). La etiqueta #cmpYrsVal si se actualiza al toque, sin
+//    esperar el debounce (feedback visual del slider). Los tests de arriba nunca
+//    disparan el addEventListener real -por eso este bug no se detecto antes-, asi
+//    que esta seccion usa dispatch('input') sobre el elemento real, no una llamada
+//    directa a renderCompare().
+// ---------------------------------------------------------------------------
+function wait(ms) { return new Promise(res => setTimeout(res, ms)); }
+
+async function listenerAsyncChecks() {
+  try {
+    const { sandbox, documentStub } = loadSandbox(seedScenarios());
+    const spy = spyMcStats(sandbox);
+    const c = documentStub.getElementById('cmpYrs');
+    const lab = documentStub.getElementById('cmpYrsVal');
+
+    // mcStats es global y lo comparten dos debounces independientes: el de esta tabla
+    // (scheduleCompare, 150ms) y el del panel de metas/rebalanceo (scheduleMC, 110ms,
+    // disparado por el render() inicial del arranque). Dejamos asentar ese primero,
+    // igual que hace test/persistencia.js con drawMC, para no confundirlo con el que
+    // estamos midiendo.
+    await wait(150);
+    spy.reset();
+
+    c.value = '25';
+    spy.reset();
+    c.dispatch('input'); // el listener real registrado con addEventListener durante la carga
+    check(spy.calls.length === 0, 'el evento "input" real sobre #cmpYrs no debe correr mcStats sincronicamente (debe quedar debounceado)');
+    check(lab.textContent === '25 años', 'la etiqueta #cmpYrsVal debe reflejar el horizonte nuevo de inmediato aunque el calculo pesado este debounceado, fue "' + lab.textContent + '"');
+
+    await wait(200); // > los 150ms de debounce de scheduleCompare()
+    check(spy.calls.length >= 3, 'tras el debounce, el evento "input" real debe terminar corriendo mcStats (via scheduleCompare -> renderCompare), corrio ' + spy.calls.length + ' vez/veces');
+    check(spy.yearsSeen().every(y => y === 25), 'el calculo debounceado debe usar el horizonte nuevo (25), no uno viejo');
+    console.log('OK   listener real de #cmpYrs: debounce via scheduleCompare() + etiqueta inmediata');
+  } catch (e) {
+    failures++;
+    console.log('FAIL listener real de #cmpYrs: debounce via scheduleCompare() + etiqueta inmediata');
+    console.log('     ' + (e && e.stack ? e.stack.split('\n').slice(0, 6).join('\n     ') : e));
+  }
 }
-console.log('Todo OK.');
+
+// ---------------------------------------------------------------------------
+listenerAsyncChecks().then(() => {
+  console.log('');
+  console.log(checks + ' aserciones corridas.');
+  if (failures) {
+    console.log(failures + ' seccion(es) fallaron.');
+    process.exit(1);
+  }
+  console.log('Todo OK.');
+  process.exit(0);
+});

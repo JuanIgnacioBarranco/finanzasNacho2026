@@ -200,7 +200,7 @@
   .cmp td{font-family:var(--disp)}
   .cmp tr.now td{background:rgba(246,178,58,.07);color:var(--tx);font-weight:600}
   .cmp tr.now td:first-child{box-shadow:inset 2px 0 0 var(--gold)}
-  .cmp .oy{color:var(--faint);font-size:11px;font-weight:400;font-family:'IBM Plex Sans',system-ui,sans-serif}
+  .cmp .oy{color:var(--faint);font-size:11px;font-weight:400;font-family:var(--body)}
   .ordtop{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
   .ordtop .l{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;font-family:var(--disp)}
   .ordtop .l .mut{font-weight:400;font-family:var(--body)}
@@ -1067,7 +1067,12 @@ function bootState(){
 function readScenarios(){
   try{
     const arr=JSON.parse(localStorage.getItem('cnf_scenarios_v1')||'[]');
-    return Array.isArray(arr) ? arr : [];
+    if(!Array.isArray(arr)) return [];
+    // saneamos ACA, no en cada consumidor: un elemento malformado (null, {}, un
+    // objeto sin snap) no puede tirar abajo renderScenarios() en el arranque
+    // sincrono -eso mata TODO el tablero, no solo Escenarios- ni ningun otro
+    // consumidor futuro. Mismo criterio que restore() usa para goals.
+    return arr.filter(s=>s && typeof s==='object' && s.snap && typeof s.snap==='object');
   }catch(e){ return []; }
 }
 function writeScenarios(list){ try{ localStorage.setItem('cnf_scenarios_v1', JSON.stringify(list)); }catch(e){} }
@@ -1180,14 +1185,27 @@ document.getElementById('pxBtn').onclick=loadPrices;
 document.getElementById('goalAdd').onclick=()=>{goals.push({name:'Nueva meta',usd:20000,years:5});buildGoals();computeGoals();scheduleSave();};
 document.getElementById('scnSave').onclick=()=>{ saveScenario(document.getElementById('scnName').value); document.getElementById('scnName').value=''; };
 document.getElementById('scnUndo').onclick=undoLoad;
-// El horizonte de la tabla arranca en el projYrs de la pantalla y después va por su cuenta.
-(()=>{ const c=document.getElementById('cmpYrs'), p=document.getElementById('projYrs');
-  if(c&&p) c.value=p.value;
-  if(c) c.addEventListener('input',renderCompare);
+// El input nativo del slider dispara a razon de muchos eventos por arrastre; correr
+// renderCompare() (500 paths de Monte Carlo por fila) en cada uno tranca la UI. La
+// etiqueta de años sí se actualiza al toque -es el feedback visual del slider-, el
+// recalculo pesado va debounceado via scheduleCompare() (150ms, definida mas arriba).
+(()=>{ const c=document.getElementById('cmpYrs');
+  if(!c) return;
+  c.addEventListener('input',()=>{
+    const lab=document.getElementById('cmpYrsVal'), y=cmpYears();
+    if(lab) lab.textContent=y+(y===1?' año':' años');
+    scheduleCompare();
+  });
 })();
 renderScenarios();
 Object.entries(HOLDINGS_ID2KEY).forEach(([id,b])=>{const el=document.getElementById(id);el.value=holdings[b]||0;el.addEventListener('input',e=>{holdings[b]=+e.target.value||0;const s=Object.values(state.weights).reduce((a,c)=>a+c,0);renderRebalance(state.weights,s);});});
 if(!bootState()){ buildGoals(); buildAlloc(); render(); }
+// El horizonte de la tabla arranca en el projYrs de la pantalla, PERO recien aca: si
+// corriera antes de bootState() se pisaria con el projYrs=20 estatico del HTML en vez
+// del valor restaurado desde cnf_state_v1. Despues va por su cuenta (no se persiste).
+(()=>{ const c=document.getElementById('cmpYrs'), p=document.getElementById('projYrs');
+  if(c&&p) c.value=p.value;
+})();
 document.addEventListener('input', e=>{ if(e.target && e.target.id==='lockPass') return; scheduleSave(); });
 document.addEventListener('change', e=>{ if(e.target && e.target.id==='lockPass') return; scheduleSave(); });
 loadPrices();

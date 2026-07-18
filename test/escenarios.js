@@ -375,6 +375,56 @@ section('tolerancia: sin ningun escenario guardado, renderScenarios() no rompe (
 });
 
 // ---------------------------------------------------------------------------
+// 6b. Elementos malformados DENTRO del array (a diferencia del punto 6, que cubre
+//     que la CLAVE entera sea JSON corrupto o un objeto). Este es el hallazgo critico
+//     de la revision: renderScenarios() hace list.map(s=>...esc(s.name)...) sin
+//     guardar `s`, asi que un elemento null/vacio tira TypeError. Y como
+//     renderScenarios() se llama sin try/catch en el arranque sincrono (ANTES de
+//     bootState(), de render() y del wiring de autosave), ese throw corta TODA la
+//     inicializacion, no solo la seccion Escenarios.
+// ---------------------------------------------------------------------------
+section('readScenarios(): filtra elementos malformados (null, objeto vacio, sin snap) y conserva los validos', () => {
+  const { sandbox } = loadSandbox({ cnf_scenarios_v1: JSON.stringify([
+    null,
+    {},
+    { name: 'sin snap' },
+    { name: 'ok', ts: 1, snap: snapA() },
+  ]) });
+  const list = sandbox.readScenarios();
+  check(Array.isArray(list) && list.length === 1, 'readScenarios() debe filtrar los 3 elementos malformados y conservar solo el valido, quedaron ' + list.length);
+  check(list[0].name === 'ok', 'el unico elemento conservado debe ser el valido ("ok")');
+});
+
+section('arranque completo: cnf_scenarios_v1 con elementos malformados no tira abajo TODO el tablero (no solo renderScenarios())', () => {
+  const casosMalos = [
+    JSON.stringify([null]),
+    JSON.stringify([{}]),
+    JSON.stringify([{ name: 'ok', snap: snapA() }, null]),
+    JSON.stringify([{ name: 'sin snap' }]),
+  ];
+  casosMalos.forEach(raw => {
+    let threw = false;
+    let result = null;
+    // loadSandbox() ejecuta TODO el script de punta a punta (incluido el
+    // renderScenarios() sincrono del arranque, bootState(), buildGoals/buildAlloc/
+    // render() y el wiring de los listeners de autosave). Si el bug del hallazgo #1
+    // sigue presente, esta linea es la que tira, no una llamada aislada a
+    // renderScenarios().
+    try { result = loadSandbox({ cnf_scenarios_v1: raw }); } catch (e) { threw = true; }
+    check(!threw, 'el arranque completo con cnf_scenarios_v1=' + raw + ' no debe lanzar');
+    if (!result) return;
+    const { sandbox } = result;
+    // no alcanza con "no tiro": el tablero tiene que haber quedado usable de punta a
+    // punta (bootState/render/wiring corrieron), no solo el modulo de escenarios.
+    check(typeof sandbox.snapshot === 'function' && typeof sandbox.restore === 'function' && typeof sandbox.scheduleSave === 'function',
+      'el sandbox debe quedar completamente inicializado (snapshot/restore/scheduleSave disponibles) con cnf_scenarios_v1=' + raw);
+    sandbox.restore(snapB());
+    const snap = normalize(sandbox.snapshot());
+    check(snap.perfil === 'conservador', 'el estado debe seguir siendo operable (restore/snapshot funcionan) despues de un arranque con escenarios malformados, caso ' + raw);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Extra: nombre vacio no guarda (y no explota si se intenta cargar/borrar un
 // indice que no existe).
 // ---------------------------------------------------------------------------
