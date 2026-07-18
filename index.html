@@ -75,7 +75,7 @@
   label{display:block;font-size:12px;color:var(--mut);margin-bottom:7px;font-weight:500}
   .money{display:flex;align-items:center;gap:7px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:0 11px}
   .money .cur{color:var(--faint);font-family:var(--disp);font-size:13px}
-  input[type=number]{width:100%;background:transparent;border:0;color:var(--tx);padding:11px 0;font-size:15px;font-family:var(--disp);font-feature-settings:"tnum" 1}
+  input[type=number],input[type=text]{width:100%;background:transparent;border:0;color:var(--tx);padding:11px 0;font-size:15px;font-family:var(--disp);font-feature-settings:"tnum" 1}
   input:focus-visible{outline:2px solid var(--purple);outline-offset:2px}
   .money:focus-within{border-color:var(--line2)}
   .three{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
@@ -538,6 +538,26 @@
     </div>
     <div id="goalsList" class="goalsgrid"></div>
     <div class="mini" style="margin-top:11px;color:var(--faint)">Cada meta se evalúa con el mismo motor Monte Carlo y tu aporte/cartera actuales. Montos en US$ (convertidos a pesos de hoy con el MEP en vivo). El “aporte extra” es a valor esperado; la probabilidad es sobre 400 simulaciones. Edad base 27 años.</div>
+  </section>
+
+  <!-- ESCENARIOS -->
+  <section class="panel" style="margin-top:15px">
+    <div class="phead">
+      <span class="ic ic-mut"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></span>
+      <div><h2>Escenarios</h2><div class="sub">Guardá fotos con nombre de tu tablero para comparar después</div></div>
+    </div>
+    <div class="field" style="margin-top:0">
+      <label>Nombre del escenario</label>
+      <div class="money"><input type="text" id="scnName" placeholder="ej. post-aumento $2M" maxlength="60"></div>
+    </div>
+    <div class="total" style="margin-top:12px">
+      <span class="mini" id="scnMsg"></span>
+      <button class="btn" id="scnSave">Guardá este escenario</button>
+    </div>
+    <div id="scnUndoBox" style="margin-top:12px;display:none">
+      <button class="btn" id="scnUndo">↺ Deshacer carga</button>
+    </div>
+    <div id="scnList" style="margin-top:15px"></div>
   </section>
 
   <p class="disc">
@@ -1021,8 +1041,90 @@ function bootState(){
   return true;
 }
 
+// --- escenarios guardados (mejora #5 tarea 3a): guardar, cargar, borrar, deshacer ---
+// cnf_scenarios_v1: array [{name, ts, snap}], preserva orden de creacion. cnf_undo_v1:
+// snapshot vivo justo antes de la ULTIMA carga (ausente si no hay nada que deshacer).
+// readScenarios() es la unica lectura, tolerante a JSON corrupto o a que la clave no
+// sea un array: la tarea 3b (tabla comparativa) deberia consumir escenarios via esta
+// misma funcion en vez de tocar localStorage directo.
+function readScenarios(){
+  try{
+    const arr=JSON.parse(localStorage.getItem('cnf_scenarios_v1')||'[]');
+    return Array.isArray(arr) ? arr : [];
+  }catch(e){ return []; }
+}
+function writeScenarios(list){ try{ localStorage.setItem('cnf_scenarios_v1', JSON.stringify(list)); }catch(e){} }
+// deepCopy: JSON.parse(JSON.stringify(...)) alcanza porque snapshot() ya devuelve solo
+// datos planos (numeros/strings/arrays/objetos), nunca funciones ni fechas.
+function deepCopy(o){ return JSON.parse(JSON.stringify(o)); }
+function scnMsg(txt){ const el=document.getElementById('scnMsg'); if(el) el.textContent=txt; }
+function fmtScnDate(ts){ try{ return new Date(ts).toLocaleString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}); }catch(e){ return ''; } }
+
+function saveScenario(rawName){
+  const name=(rawName||'').trim();
+  if(!name){ scnMsg('Poné un nombre antes de guardar.'); return; }
+  const list=readScenarios();
+  const i=list.findIndex(s=>s && s.name===name);
+  if(i>=0 && !confirm(`Ya existe un escenario "${name}". ¿Lo sobrescribís?`)) return;
+  // copia profunda: nunca guardar el mismo objeto weights/goals que ya vive (o vivio)
+  // en otro escenario, si no mover un slider despues los mutaria a todos a la vez.
+  const entry={name, ts:Date.now(), snap:deepCopy(snapshot())};
+  if(i>=0) list[i]=entry; else list.push(entry);
+  writeScenarios(list);
+  renderScenarios();
+  scnMsg(`Escenario "${name}" guardado.`);
+}
+
+function applyScenario(idx){
+  const item=readScenarios()[idx]; if(!item) return;
+  // undo guarda el estado vivo tal cual estaba ANTES de esta carga (la red de
+  // seguridad del brief: cargar pisa la cartera real cargada a mano).
+  try{ localStorage.setItem('cnf_undo_v1', JSON.stringify(snapshot())); }catch(e){}
+  restore(item.snap);
+  scheduleSave();
+  renderScenarios();
+  scnMsg(`Escenario "${item.name}" cargado.`);
+}
+
+function deleteScenario(idx){
+  const list=readScenarios(); const item=list[idx]; if(!item) return;
+  if(!confirm(`¿Borrar el escenario "${item.name}"?`)) return;
+  list.splice(idx,1);
+  writeScenarios(list);
+  renderScenarios();
+  scnMsg(`Escenario "${item.name}" borrado.`);
+}
+
+function undoLoad(){
+  let raw=null; try{ raw=localStorage.getItem('cnf_undo_v1'); }catch(e){}
+  if(raw==null) return;
+  let prev=null; try{ prev=JSON.parse(raw); }catch(e){ prev=null; }
+  try{ localStorage.removeItem('cnf_undo_v1'); }catch(e){}
+  refreshUndoBtn(); // se oculta apenas se usa, haya o no prev valido
+  if(prev){ restore(prev); scheduleSave(); }
+}
+
+function refreshUndoBtn(){
+  const box=document.getElementById('scnUndoBox'); if(!box) return;
+  let has=false; try{ has=localStorage.getItem('cnf_undo_v1')!=null; }catch(e){}
+  box.style.display = has ? '' : 'none';
+}
+
+function renderScenarios(){
+  const box=document.getElementById('scnList'); if(!box) return;
+  const list=readScenarios();
+  box.innerHTML = list.length===0
+    ? `<div class="mini" style="color:var(--faint)">Todavía no guardaste ningún escenario. Ponele un nombre arriba y guardá tu cartera actual para comparar más adelante.</div>`
+    : list.map((s,i)=>`<div class="ordrow"><div class="ordtop"><span class="l">${esc(s.name)}</span><span class="m mut" style="font-weight:400;font-size:11.5px">${fmtScnDate(s.ts)}</span></div><div class="ordsub" style="display:flex;gap:8px;margin-top:8px"><button class="btn" data-act="load" data-idx="${i}">Cargá</button><button class="btn" data-act="del" data-idx="${i}">Borrá</button></div></div>`).join('');
+  box.querySelectorAll('button[data-act]').forEach(b=>{ b.onclick=()=>(b.dataset.act==='load'?applyScenario:deleteScenario)(+b.dataset.idx); });
+  refreshUndoBtn();
+}
+
 document.getElementById('pxBtn').onclick=loadPrices;
 document.getElementById('goalAdd').onclick=()=>{goals.push({name:'Nueva meta',usd:20000,years:5});buildGoals();computeGoals();scheduleSave();};
+document.getElementById('scnSave').onclick=()=>{ saveScenario(document.getElementById('scnName').value); document.getElementById('scnName').value=''; };
+document.getElementById('scnUndo').onclick=undoLoad;
+renderScenarios();
 Object.entries(HOLDINGS_ID2KEY).forEach(([id,b])=>{const el=document.getElementById(id);el.value=holdings[b]||0;el.addEventListener('input',e=>{holdings[b]=+e.target.value||0;const s=Object.values(state.weights).reduce((a,c)=>a+c,0);renderRebalance(state.weights,s);});});
 if(!bootState()){ buildGoals(); buildAlloc(); render(); }
 document.addEventListener('input', e=>{ if(e.target && e.target.id==='lockPass') return; scheduleSave(); });
