@@ -646,13 +646,13 @@ function renderOrders(inv,w,sum){
 function seg(id,cb){document.querySelectorAll('#'+id+' button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('#'+id+' button').forEach(x=>x.classList.remove('on'));
   b.classList.add('on'); cb(b.dataset.v);});}
-seg('perfil',v=>{state.perfil=v;state.weights=preset(v,state.plazo);buildAlloc();render();});
+seg('perfil',v=>{state.perfil=v;state.weights=preset(v,state.plazo);buildAlloc();render();scheduleSave();});
 seg('plazo', v=>{state.plazo=v;state.weights=preset(state.perfil,v);
   document.getElementById('projYrs').value={corto:3,mediano:8,largo:20}[v];
-  buildAlloc();render();});
-seg('ingreso',v=>{document.getElementById('ingresoNum').value=v;render();});
+  buildAlloc();render();scheduleSave();});
+seg('ingreso',v=>{document.getElementById('ingresoNum').value=v;render();scheduleSave();});
 ['ingresoNum','gAlq','gCom','gImp','cuotas','pctInv','objMud','objYa','projYrs','projP0','projGoal'].forEach(id=>document.getElementById(id).addEventListener('input',render));
-document.getElementById('reset').onclick=()=>{state.weights=preset(state.perfil,state.plazo);buildAlloc();render();};
+document.getElementById('reset').onclick=()=>{state.weights=preset(state.perfil,state.plazo);buildAlloc();render();scheduleSave();};
 
 function rdots(n,c){let s='';for(let i=1;i<=5;i++)s+=`<span class="rp" style="background:${i<=n?c:''}"></span>`;return s;}
 function fill(el,frac,c){const p=Math.max(0,Math.min(1,frac))*100;el.style.background=`linear-gradient(90deg,${c} ${p}%,#232c40 ${p}%)`;}
@@ -733,9 +733,11 @@ function drawMC(a){
 }
 
 // --- cartera real + rebalanceo (feature 2) ---
+// cnf_holdings queda sólo como lectura de migración (mejora #5 tarea 2): la
+// escritura duplicada (saveHoldings) se eliminó porque hLiq/hIdx/hBtc/hTem ahora
+// viven en el snapshot único (cnf_state_v1, ver scheduleSave/restore más abajo).
 let holdings={liq:0,idx:0,btc:0,tem:0};
 try{const _h=JSON.parse(localStorage.getItem('cnf_holdings')||'null'); if(_h)holdings=Object.assign(holdings,_h);}catch(e){}
-function saveHoldings(){try{localStorage.setItem('cnf_holdings',JSON.stringify(holdings));}catch(e){}}
 function miniBar(pctMap,label){let seg='';['liq','idx','btc','tem'].forEach(b=>{const p=(pctMap[b]||0)*100;if(p>0.3)seg+=`<span style="width:${p}%;background:${css(bucketColor(b))}"></span>`;});return `<div class="rbrow"><span class="rblab">${label}</span><div class="bar mini">${seg}</div></div>`;}
 function renderRebalance(w,sum){
   const box=document.getElementById('rebal'); if(!box)return;
@@ -788,7 +790,7 @@ function buildGoals(){
     document.getElementById('gn-'+i).addEventListener('input',e=>{goals[i].name=e.target.value;});
     document.getElementById('gu-'+i).addEventListener('input',e=>{goals[i].usd=+e.target.value||0;computeGoals();});
     document.getElementById('gy-'+i).addEventListener('input',e=>{goals[i].years=Math.max(1,Math.min(40,+e.target.value||1));computeGoals();});
-    document.getElementById('gx-'+i).onclick=()=>{goals.splice(i,1);buildGoals();computeGoals();};
+    document.getElementById('gx-'+i).onclick=()=>{goals.splice(i,1);buildGoals();computeGoals();scheduleSave();};
   });
 }
 function computeGoals(){
@@ -928,11 +930,100 @@ function render(){
   renderOrders(f.inv,w,sum);
 }
 
+// --- persistencia total del estado (mejora #5 tarea 2) ---
+const PERFILES=['conservador','moderado','arriesgado'], PLAZOS=['corto','mediano','largo'];
+const RESTORE_INPUT_IDS=['ingresoNum','gAlq','gCom','gImp','cuotas','pctInv','objYa','objMud','projYrs','projP0','projGoal','hLiq','hIdx','hBtc','hTem'];
+const HOLDINGS_ID2KEY={hLiq:'liq',hIdx:'idx',hBtc:'btc',hTem:'tem'};
+
+// snapshot: alias trivial de readDOM (tarea 1) — el nombre que usan autosave/restore
+// es "snapshot", pero la lógica ya vive en readDOM; no se duplica.
+function snapshot(){return readDOM();}
+
+// restore: aplica un snapshot guardado al tablero. Tolerante a datos parciales o
+// corruptos (localStorage viejo, editado a mano, o con v de una versión futura):
+// ante cualquier campo faltante o con el tipo equivocado se conserva el valor
+// actual/default en vez de romper el tablero.
+function restore(s){
+  if(!s || typeof s!=='object' || s.v!==1) return;
+
+  if(PERFILES.includes(s.perfil)) state.perfil=s.perfil;
+  if(PLAZOS.includes(s.plazo)) state.plazo=s.plazo;
+
+  if(s.weights && typeof s.weights==='object'){
+    const w={...state.weights};
+    ['liq','idx','btc','tem'].forEach(k=>{ if(typeof s.weights[k]==='number' && Number.isFinite(s.weights[k])) w[k]=s.weights[k]; });
+    state.weights=w; // copia, nunca la referencia de s.weights (mismo riesgo de aliasing que readDOM)
+  }
+
+  if(s.inputs && typeof s.inputs==='object'){
+    RESTORE_INPUT_IDS.forEach(id=>{
+      const v=s.inputs[id];
+      if(typeof v!=='number' || !Number.isFinite(v)) return;
+      const el=document.getElementById(id);
+      if(el) el.value=v;
+      // hLiq/hIdx/hBtc/hTem también viven espejados en `holdings` (los lee
+      // renderRebalance); si no los sincronizamos acá quedan mintiendo hasta el
+      // próximo input manual del usuario.
+      const hk=HOLDINGS_ID2KEY[id];
+      if(hk) holdings[hk]=v;
+    });
+  }
+
+  if(Array.isArray(s.goals)){
+    goals=s.goals.filter(g=>g && typeof g==='object').map(g=>({
+      name: typeof g.name==='string' ? g.name : 'Nueva meta',
+      usd: (typeof g.usd==='number' && Number.isFinite(g.usd)) ? g.usd : 0,
+      years: (typeof g.years==='number' && Number.isFinite(g.years)) ? g.years : 1,
+    })); // copias, nunca los objetos de s.goals (mismo riesgo de aliasing que readDOM)
+  }
+
+  // refrescar el botón activo de los segmentos, si no la UI queda mintiendo
+  document.querySelectorAll('#perfil button').forEach(b=>b.classList.toggle('on', b.dataset.v===state.perfil));
+  document.querySelectorAll('#plazo button').forEach(b=>b.classList.toggle('on', b.dataset.v===state.plazo));
+
+  // buildAlloc/buildGoals/render ya disparan scheduleMC()/scheduleGoals() adentro de
+  // render() con los parámetros recién calculados; no se repiten sueltos acá porque
+  // scheduleMC(a) necesita ese objeto {C,P0,muA,volA,years,goal} y llamarla sin
+  // argumentos pisaría el timer recién armado con uno roto (drawMC(undefined)).
+  buildAlloc();
+  buildGoals();
+  render();
+}
+
+// autosave: debounce de 250ms sobre cnf_state_v1, con un único listener delegado en
+// document (no quince sueltos). #lockPass queda afuera explícitamente: ni entra al
+// snapshot (readDOM no lo lee) ni dispara guardado.
+let _saveTimer=null;
+function scheduleSave(){
+  clearTimeout(_saveTimer);
+  _saveTimer=setTimeout(()=>{
+    try{ localStorage.setItem('cnf_state_v1', JSON.stringify(snapshot())); }catch(e){}
+  }, 250);
+}
+
+// bootState: decide el estado inicial al arrancar. cnf_state_v1 gana si existe y es
+// válido (pisa incluso los hLiq/hIdx/hBtc/hTem recién sembrados desde cnf_holdings,
+// que sólo actúa como semilla para cuando cnf_state_v1 todavía no existe). Devuelve
+// true si restauró (restore() ya hizo su propio render()); si devuelve false, al
+// llamador le toca hacer el buildGoals/buildAlloc/render con los defaults.
+function bootState(){
+  let raw=null;
+  try{ raw=localStorage.getItem('cnf_state_v1'); }catch(e){}
+  if(!raw) return false;
+  let parsed=null;
+  try{ parsed=JSON.parse(raw); }catch(e){ return false; }
+  if(!parsed || parsed.v!==1) return false;
+  restore(parsed);
+  return true;
+}
+
 document.getElementById('pxBtn').onclick=loadPrices;
-document.getElementById('goalAdd').onclick=()=>{goals.push({name:'Nueva meta',usd:20000,years:5});buildGoals();computeGoals();};
-[['hLiq','liq'],['hIdx','idx'],['hBtc','btc'],['hTem','tem']].forEach(([id,b])=>{const el=document.getElementById(id);el.value=holdings[b]||0;el.addEventListener('input',e=>{holdings[b]=+e.target.value||0;saveHoldings();const s=Object.values(state.weights).reduce((a,c)=>a+c,0);renderRebalance(state.weights,s);});});
-buildGoals();
-buildAlloc(); render(); loadPrices();
+document.getElementById('goalAdd').onclick=()=>{goals.push({name:'Nueva meta',usd:20000,years:5});buildGoals();computeGoals();scheduleSave();};
+[['hLiq','liq'],['hIdx','idx'],['hBtc','btc'],['hTem','tem']].forEach(([id,b])=>{const el=document.getElementById(id);el.value=holdings[b]||0;el.addEventListener('input',e=>{holdings[b]=+e.target.value||0;const s=Object.values(state.weights).reduce((a,c)=>a+c,0);renderRebalance(state.weights,s);});});
+if(!bootState()){ buildGoals(); buildAlloc(); render(); }
+document.addEventListener('input', e=>{ if(e.target && e.target.id==='lockPass') return; scheduleSave(); });
+document.addEventListener('change', e=>{ if(e.target && e.target.id==='lockPass') return; scheduleSave(); });
+loadPrices();
 </script>
 </body>
 </html>
