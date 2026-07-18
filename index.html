@@ -819,21 +819,24 @@ function computeGoals(){
   });
 }
 
+// INPUT_IDS: única fuente de verdad de los 15 ids de <input> que entran al snapshot.
+// readDOM() los lee acá abajo y restore() (más adelante) vuelve a aplicarlos
+// iterando este MISMO array — antes vivían duplicados a mano en dos listas que
+// se podían desincronizar en silencio si alguien agregaba un campo a una y se
+// olvidaba de la otra.
+const INPUT_IDS=['ingresoNum','gAlq','gCom','gImp','cuotas','pctInv','objYa','objMud','projYrs','projP0','projGoal','hLiq','hIdx','hBtc','hTem'];
+
 // readDOM: única lectura del DOM, devuelve un snapshot plano (mejora #5 tarea 1).
 // Con esto se puede recalcular un escenario guardado sin tenerlo cargado en pantalla.
 function readDOM(){
+  const inputs={};
+  INPUT_IDS.forEach(id=>{ inputs[id]=num(id); });
   return {
     v: 1,
     perfil: state.perfil,
     plazo: state.plazo,
     weights: {...state.weights},
-    inputs: {
-      ingresoNum: num('ingresoNum'), gAlq: num('gAlq'), gCom: num('gCom'), gImp: num('gImp'),
-      cuotas: num('cuotas'), pctInv: num('pctInv'),
-      objYa: num('objYa'), objMud: num('objMud'),
-      projYrs: num('projYrs'), projP0: num('projP0'), projGoal: num('projGoal'),
-      hLiq: num('hLiq'), hIdx: num('hIdx'), hBtc: num('hBtc'), hTem: num('hTem'),
-    },
+    inputs,
     goals: goals.map(g=>({name:g.name, usd:g.usd, years:g.years})),
   };
 }
@@ -932,7 +935,8 @@ function render(){
 
 // --- persistencia total del estado (mejora #5 tarea 2) ---
 const PERFILES=['conservador','moderado','arriesgado'], PLAZOS=['corto','mediano','largo'];
-const RESTORE_INPUT_IDS=['ingresoNum','gAlq','gCom','gImp','cuotas','pctInv','objYa','objMud','projYrs','projP0','projGoal','hLiq','hIdx','hBtc','hTem'];
+// INPUT_IDS ya está definida arriba, junto a readDOM() — restore() reusa esa misma
+// lista (no una copia) para que ambas direcciones del snapshot queden atadas.
 const HOLDINGS_ID2KEY={hLiq:'liq',hIdx:'idx',hBtc:'btc',hTem:'tem'};
 
 // snapshot: alias trivial de readDOM (tarea 1) — el nombre que usan autosave/restore
@@ -956,7 +960,7 @@ function restore(s){
   }
 
   if(s.inputs && typeof s.inputs==='object'){
-    RESTORE_INPUT_IDS.forEach(id=>{
+    INPUT_IDS.forEach(id=>{
       const v=s.inputs[id];
       if(typeof v!=='number' || !Number.isFinite(v)) return;
       const el=document.getElementById(id);
@@ -1019,7 +1023,7 @@ function bootState(){
 
 document.getElementById('pxBtn').onclick=loadPrices;
 document.getElementById('goalAdd').onclick=()=>{goals.push({name:'Nueva meta',usd:20000,years:5});buildGoals();computeGoals();scheduleSave();};
-[['hLiq','liq'],['hIdx','idx'],['hBtc','btc'],['hTem','tem']].forEach(([id,b])=>{const el=document.getElementById(id);el.value=holdings[b]||0;el.addEventListener('input',e=>{holdings[b]=+e.target.value||0;const s=Object.values(state.weights).reduce((a,c)=>a+c,0);renderRebalance(state.weights,s);});});
+Object.entries(HOLDINGS_ID2KEY).forEach(([id,b])=>{const el=document.getElementById(id);el.value=holdings[b]||0;el.addEventListener('input',e=>{holdings[b]=+e.target.value||0;const s=Object.values(state.weights).reduce((a,c)=>a+c,0);renderRebalance(state.weights,s);});});
 if(!bootState()){ buildGoals(); buildAlloc(); render(); }
 document.addEventListener('input', e=>{ if(e.target && e.target.id==='lockPass') return; scheduleSave(); });
 document.addEventListener('change', e=>{ if(e.target && e.target.id==='lockPass') return; scheduleSave(); });

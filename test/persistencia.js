@@ -387,6 +387,126 @@ section('#lockPass nunca entra al snapshot ni al JSON guardado en localStorage',
 });
 
 // ---------------------------------------------------------------------------
+// 7. restore() refresca el boton activo de los segmentos #perfil y #plazo (si no,
+//    la UI queda mintiendo: el estado interno cambia pero el boton resaltado no).
+// ---------------------------------------------------------------------------
+section('restore(): refresca el boton activo de los segmentos #perfil y #plazo', () => {
+  const { sandbox, perfilButtons, plazoButtons } = loadSandbox({});
+  // sanity: el sandbox arranca con moderado/largo activos (ver makeSegButtons en loadSandbox).
+  check(perfilButtons.find(b => b.dataset.v === 'moderado').classList.contains('on'), 'sanity: arranca con "moderado" activo en #perfil');
+  check(plazoButtons.find(b => b.dataset.v === 'largo').classList.contains('on'), 'sanity: arranca con "largo" activo en #plazo');
+
+  sandbox.restore({
+    v: 1, perfil: 'arriesgado', plazo: 'corto',
+    weights: { liq: 5, idx: 35, btc: 40, tem: 20 }, inputs: {}, goals: [],
+  });
+
+  perfilButtons.forEach(b => {
+    const shouldBeOn = b.dataset.v === 'arriesgado';
+    check(b.classList.contains('on') === shouldBeOn, 'boton #perfil "' + b.dataset.v + '" deberia quedar ' + (shouldBeOn ? 'activo' : 'inactivo') + ' tras restore()');
+  });
+  plazoButtons.forEach(b => {
+    const shouldBeOn = b.dataset.v === 'corto';
+    check(b.classList.contains('on') === shouldBeOn, 'boton #plazo "' + b.dataset.v + '" deberia quedar ' + (shouldBeOn ? 'activo' : 'inactivo') + ' tras restore()');
+  });
+  check(perfilButtons.filter(b => b.classList.contains('on')).length === 1, 'debe quedar exactamente un boton activo en #perfil tras restore()');
+  check(plazoButtons.filter(b => b.classList.contains('on')).length === 1, 'debe quedar exactamente un boton activo en #plazo tras restore()');
+});
+
+// ---------------------------------------------------------------------------
+// 8. Autosave: un unico listener delegado en document (no uno por input suelto).
+// ---------------------------------------------------------------------------
+section('autosave: exactamente un listener de "input" y uno de "change" delegados en document', () => {
+  const { docListeners } = loadSandbox({});
+  check(docListeners.input.length === 1, 'debe haber exactamente 1 listener de "input" en document (delegado), hubo ' + docListeners.input.length);
+  check(docListeners.change.length === 1, 'debe haber exactamente 1 listener de "change" en document (delegado), hubo ' + docListeners.change.length);
+});
+
+// ---------------------------------------------------------------------------
+// 9. Fuente unica: INPUT_IDS alimenta tanto readDOM()/snapshot() como restore()
+//    (antes eran dos listas hardcodeadas que se podian desincronizar en silencio),
+//    y HOLDINGS_ID2KEY es la unica fuente del mapeo hLiq->liq (readDOM/restore/wiring).
+// ---------------------------------------------------------------------------
+section('fuente unica: INPUT_IDS y HOLDINGS_ID2KEY alimentan a la vez snapshot() y restore()', () => {
+  const { sandbox, ctx } = loadSandbox({});
+  const ids = vm.runInContext('INPUT_IDS', ctx);
+  check(Array.isArray(ids) && ids.length > 0, 'INPUT_IDS debe existir en index.html y no estar vacia');
+
+  // snapshot().inputs debe tener EXACTAMENTE esas claves (ni una lista aparte con menos/mas).
+  const snapKeys = Object.keys(sandbox.snapshot().inputs).sort();
+  check(JSON.stringify(snapKeys) === JSON.stringify([...ids].sort()), 'snapshot().inputs debe tener exactamente las claves de INPUT_IDS');
+
+  // restore() debe aplicar TODOS los ids de INPUT_IDS: si alguien reintrodujera una
+  // segunda lista hardcodeada aparte (desincronizada), alguno de estos quedaria sin
+  // aplicarse y este round-trip construido a partir de INPUT_IDS lo detecta.
+  const inputs = {};
+  ids.forEach((id, i) => { inputs[id] = 1000 + i; });
+  sandbox.restore({ v: 1, perfil: 'moderado', plazo: 'largo', weights: { liq: 25, idx: 25, btc: 25, tem: 25 }, inputs, goals: [] });
+  const after = sandbox.snapshot().inputs;
+  ids.forEach((id, i) => {
+    check(after[id] === 1000 + i, 'restore() debe aplicar el id "' + id + '" de INPUT_IDS, hoy vale ' + after[id] + ', se esperaba ' + (1000 + i));
+  });
+
+  // idem con HOLDINGS_ID2KEY: hLiq/hIdx/hBtc/hTem deben espejarse en `holdings` via
+  // ese mismo mapeo, no via el array literal duplicado que vivia en el wiring.
+  const h2k = vm.runInContext('HOLDINGS_ID2KEY', ctx);
+  const liveHoldings = vm.runInContext('holdings', ctx);
+  Object.entries(h2k).forEach(([id, key]) => {
+    check(liveHoldings[key] === after[id], 'holdings.' + key + ' debe reflejar el input "' + id + '" recien restaurado via HOLDINGS_ID2KEY');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 10. Tras restore(), scheduleMC()/scheduleGoals() se disparan con los parametros
+//     del estado NUEVO recien restaurado (no con los del estado viejo).
+// ---------------------------------------------------------------------------
+section('restore(): dispara scheduleMC()/scheduleGoals() con los parametros del estado recien restaurado', () => {
+  const { sandbox } = loadSandbox({});
+
+  function spyThrough(name) {
+    const calls = [];
+    const orig = sandbox[name];
+    sandbox[name] = function (a) { calls.push(a); return orig(a); };
+    return calls;
+  }
+  const mcCalls = spyThrough('scheduleMC');
+  const goalCalls = spyThrough('scheduleGoals');
+
+  // Dos estados bien distinguibles entre si (aporte, pesos, plazo, metas de proyeccion).
+  const estados = [
+    { v: 1, perfil: 'conservador', plazo: 'largo', weights: { liq: 90, idx: 5, btc: 3, tem: 2 },
+      inputs: { ingresoNum: 500000, gAlq: 100000, gCom: 50000, gImp: 20000, cuotas: 10000, pctInv: 10, objYa: 0, objMud: 0, projYrs: 5, projP0: 1000, projGoal: 1000000, hLiq: 0, hIdx: 0, hBtc: 0, hTem: 0 },
+      goals: [] },
+    { v: 1, perfil: 'arriesgado', plazo: 'corto', weights: { liq: 5, idx: 35, btc: 40, tem: 20 },
+      inputs: { ingresoNum: 5000000, gAlq: 300000, gCom: 100000, gImp: 50000, cuotas: 20000, pctInv: 80, objYa: 0, objMud: 0, projYrs: 15, projP0: 500000, projGoal: 90000000, hLiq: 0, hIdx: 0, hBtc: 0, hTem: 0 },
+      goals: [] },
+  ];
+
+  estados.forEach((s, i) => {
+    mcCalls.length = 0; goalCalls.length = 0;
+    sandbox.restore(s);
+    check(mcCalls.length >= 1, 'restore() del estado #' + i + ' debe disparar scheduleMC');
+    check(goalCalls.length >= 1, 'restore() del estado #' + i + ' debe disparar scheduleGoals');
+
+    const called = mcCalls[mcCalls.length - 1];
+    // computeFlow(readDOM()) recalculado justo despues de restore() es la fuente de
+    // verdad de "estado recien restaurado": si scheduleMC() se hubiera llamado con
+    // parametros viejos (del estado anterior, o de un render() salteado), no coincidirian.
+    const fresh = sandbox.computeFlow(sandbox.readDOM());
+    check(called.C === fresh.inv, 'estado #' + i + ': scheduleMC.C debe ser el aporte del estado nuevo (' + fresh.inv + '), fue ' + called.C);
+    check(called.P0 === fresh.P0, 'estado #' + i + ': scheduleMC.P0 debe ser el del estado nuevo (' + fresh.P0 + '), fue ' + called.P0);
+    check(called.years === fresh.years, 'estado #' + i + ': scheduleMC.years debe ser el del estado nuevo (' + fresh.years + '), fue ' + called.years);
+    check(called.goal === fresh.goal, 'estado #' + i + ': scheduleMC.goal debe ser el del estado nuevo (' + fresh.goal + '), fue ' + called.goal);
+    check(called.muA === fresh.ret / 100, 'estado #' + i + ': scheduleMC.muA debe ser el del estado nuevo');
+    check(Math.abs(called.volA - fresh.volA) < 1e-9, 'estado #' + i + ': scheduleMC.volA debe ser el del estado nuevo');
+
+    ['C', 'P0', 'muA', 'volA', 'years', 'goal'].forEach(k => {
+      check(called[k] !== undefined, 'estado #' + i + ': scheduleMC no debe recibir "' + k + '" undefined');
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 6b. Lo mismo pero de punta a punta: scheduleSave() real (con su debounce de 250ms)
 //     tampoco debe dejar "lockPass" en lo que efectivamente queda escrito en
 //     localStorage. Es async porque hay que esperar el debounce real.
@@ -415,9 +535,49 @@ async function asyncChecks() {
 }
 
 // ---------------------------------------------------------------------------
+// 10b. Punta a punta del mismo invariante: drawMC() (el consumidor real de
+//      scheduleMC, tras su debounce de 110ms) efectivamente se ejecuta despues
+//      de restore() y nunca con un argumento undefined ni con campos undefined.
+// ---------------------------------------------------------------------------
+async function mcAsyncChecks() {
+  try {
+    const { sandbox } = loadSandbox({});
+    const drawCalls = [];
+    const origDrawMC = sandbox.drawMC;
+    sandbox.drawMC = function (a) { drawCalls.push(a); return origDrawMC(a); };
+
+    // El arranque en frio (bootState()==false -> render() inicial) TAMBIEN programa
+    // un scheduleMC()/drawMC() propio con su debounce de 110ms. Si no lo dejamos
+    // asentar y vaciamos drawCalls antes de medir, esa llamada de arranque "tapa"
+    // el caso en que restore() dejara de disparar drawMC (falso negativo).
+    await wait(150);
+    drawCalls.length = 0;
+
+    sandbox.restore({
+      v: 1, perfil: 'arriesgado', plazo: 'corto', weights: { liq: 5, idx: 35, btc: 40, tem: 20 },
+      inputs: { ingresoNum: 3000000, gAlq: 200000, gCom: 100000, gImp: 50000, cuotas: 30000, pctInv: 55, objYa: 0, objMud: 0, projYrs: 9, projP0: 250000, projGoal: 40000000, hLiq: 0, hIdx: 0, hBtc: 0, hTem: 0 },
+      goals: [],
+    });
+    await wait(200); // > los 110ms de debounce de scheduleMC
+
+    check(drawCalls.length >= 1, 'drawMC() debe terminar ejecutandose (tras el debounce de scheduleMC) despues de un restore(), aislado del render() de arranque');
+    const a = drawCalls[drawCalls.length - 1];
+    check(a !== undefined, 'drawMC no debe recibir undefined como argumento');
+    ['C', 'P0', 'muA', 'volA', 'years', 'goal'].forEach(k => {
+      check(a && a[k] !== undefined, 'drawMC no debe recibir "' + k + '" undefined dentro de sus parametros');
+    });
+    console.log('OK   restore(): drawMC() efectivamente se ejecuta tras el debounce y nunca con undefined');
+  } catch (e) {
+    failures++;
+    console.log('FAIL restore(): drawMC() tras el debounce (undefined / no invocado)');
+    console.log('     ' + (e && e.stack ? e.stack.split('\n').slice(0, 6).join('\n     ') : e));
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Fin
 // ---------------------------------------------------------------------------
-asyncChecks().then(() => {
+asyncChecks().then(mcAsyncChecks).then(() => {
   console.log('');
   console.log(checks + ' aserciones corridas.');
   if (failures > 0) {
