@@ -682,7 +682,9 @@ function portfolioVol(w,sum){const rho=0.4,k=['liq','idx','btc','tem'];let v=0;
 function randn(){let u=0,v=0;while(!u)u=Math.random();while(!v)v=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(6.2831853*v);}
 let _mcTimer=null;
 function scheduleMC(a){clearTimeout(_mcTimer);_mcTimer=setTimeout(()=>drawMC(a),110);}
-function drawMC(a){
+// mcStats es la corrida Monte Carlo en sí: pura en el sentido de que no toca el DOM,
+// pero NO es determinista porque randn() tira de Math.random(). drawMC sólo dibuja.
+function mcStats(a){
   const C=a.C,P0=a.P0,muA=a.muA,volA=a.volA,years=a.years,goal=a.goal;
   const months=Math.max(1,Math.round(years*12)),N=500;
   const sLog=Math.sqrt(Math.log(1+(volA*volA)/Math.pow(1+muA,2))), mLog=Math.log(1+muA)-0.5*sLog*sLog;
@@ -694,9 +696,20 @@ function drawMC(a){
     for(let t=0;t<=months;t++){ if(t>0)v=v*Math.exp(mm+sm*randn())+C; if(si<sM.length&&t===sM[si]){cols[si][p]=v;si++;} }
     finals[p]=v; if(v>=goal)reached++;
   }
-  const pctF=(arr,q)=>{const b=Float64Array.from(arr).sort();return b[Math.min(b.length-1,Math.floor(q*b.length))];};
   const p10=[],p50=[],p90=[]; cols.forEach(c=>{const b=Float64Array.from(c).sort();const gg=q=>b[Math.min(b.length-1,Math.floor(q*b.length))];p10.push(gg(.1));p50.push(gg(.5));p90.push(gg(.9));});
-  const med=pctF(finals,.5),lo=pctF(finals,.1),hi=pctF(finals,.9),tot=P0+C*months,prob=100*reached/N;
+  const prob=100*reached/N;
+  return {p10,p50,p90,prob};
+}
+function drawMC(a){
+  const C=a.C,P0=a.P0,muA=a.muA,volA=a.volA,years=a.years,goal=a.goal;
+  const months=Math.max(1,Math.round(years*12));
+  // sM se recalcula acá (además de adentro de mcStats) sólo para tener los X del gráfico;
+  // es geometría del eje de tiempo, no estadística, así que no vale la pena colarla en el
+  // contrato de retorno de mcStats.
+  const step=Math.max(1,Math.round(months/70)), sM=[];
+  for(let t=0;t<=months;t+=step)sM.push(t); if(sM[sM.length-1]!==months)sM.push(months);
+  const {p10,p50,p90,prob}=mcStats(a);
+  const med=p50[p50.length-1],lo=p10[p10.length-1],hi=p90[p90.length-1],tot=P0+C*months;
   document.getElementById('pbVal').textContent=fmt.format(Math.round(med));
   document.getElementById('pbYrs').textContent=years;
   document.getElementById('pbSub').innerHTML=`Rango probable (p10–p90): <b style="color:#cfd8e8">${fmt.format(Math.round(lo))}</b> → <b style="color:#cfd8e8">${fmt.format(Math.round(hi))}</b>`;
@@ -804,50 +817,95 @@ function computeGoals(){
   });
 }
 
-function render(){
-  // flujo mensual
-  const ingreso=num('ingresoNum'), gastos=num('gAlq')+num('gCom')+num('gImp'), cuotas=num('cuotas');
-  const exced=ingreso-gastos-cuotas, pct=num('pctInv');
+// readDOM: única lectura del DOM, devuelve un snapshot plano (mejora #5 tarea 1).
+// Con esto se puede recalcular un escenario guardado sin tenerlo cargado en pantalla.
+function readDOM(){
+  return {
+    v: 1,
+    perfil: state.perfil,
+    plazo: state.plazo,
+    weights: {...state.weights},
+    inputs: {
+      ingresoNum: num('ingresoNum'), gAlq: num('gAlq'), gCom: num('gCom'), gImp: num('gImp'),
+      cuotas: num('cuotas'), pctInv: num('pctInv'),
+      objYa: num('objYa'), objMud: num('objMud'),
+      projYrs: num('projYrs'), projP0: num('projP0'), projGoal: num('projGoal'),
+      hLiq: num('hLiq'), hIdx: num('hIdx'), hBtc: num('hBtc'), hTem: num('hTem'),
+    },
+    goals: goals.map(g=>({name:g.name, usd:g.usd, years:g.years})),
+  };
+}
+
+// computeFlow: TODA la matemática del flujo mensual + cartera, pura. No toca document,
+// no llama num() ni css(). Sólo depende del snapshot y de las funciones puras ya
+// existentes (portfolioVol). Esto es lo que las tareas 2-4 necesitan para calcular
+// un escenario sin renderizarlo.
+function computeFlow(snap){
+  const {inputs, weights}=snap;
+  const ingreso=inputs.ingresoNum, gastos=inputs.gAlq+inputs.gCom+inputs.gImp, cuotas=inputs.cuotas;
+  const exced=ingreso-gastos-cuotas, pct=inputs.pctInv;
   const inv=Math.max(0,Math.round(exced*pct/100));
+
+  const w=weights, sum=Object.values(w).reduce((a,b)=>a+b,0)||1;
+  let risk=0,grow=0,ret=0;
+  buckets.forEach(b=>{
+    const frac=w[b.id]/sum;
+    risk+=frac*b.risk; grow+=frac*b.grow; ret+=frac*b.ret;
+  });
+  const volA=portfolioVol(w,sum);
+
+  const years=Math.max(1,Math.round(inputs.projYrs));
+  const goal=inputs.projGoal, P0=inputs.projP0;
+
+  // risk/grow no están en el mínimo pedido para computeFlow, pero salen del mismo
+  // loop ponderado que ret (mismo w/sum) — calcularlos acá evita repetir el loop en render().
+  return {exced, inv, ret, w, sum, volA, years, goal, P0, risk, grow};
+}
+
+function render(){
+  const snap=readDOM();
+  const f=computeFlow(snap);
+  const {inputs}=snap;
+  const ingreso=inputs.ingresoNum, gastos=inputs.gAlq+inputs.gCom+inputs.gImp, cuotas=inputs.cuotas, pct=inputs.pctInv;
+
+  // flujo mensual
   document.getElementById('cuotasVal').textContent=fmt.format(cuotas);
   document.getElementById('pctVal').textContent=pct+'%';
   document.getElementById('fIng').textContent=fmt.format(ingreso);
   document.getElementById('fGastos').textContent='− '+fmt.format(gastos);
   document.getElementById('fCuo').textContent='− '+fmt.format(cuotas);
-  document.getElementById('fExced').textContent=fmt.format(exced);
-  document.getElementById('fExced').style.color=exced<0?css('--bad'):css('--tx');
+  document.getElementById('fExced').textContent=fmt.format(f.exced);
+  document.getElementById('fExced').style.color=f.exced<0?css('--bad'):css('--tx');
   document.getElementById('fPctLbl').textContent=`Para invertir (${pct}% del excedente)`;
-  document.getElementById('fInv').textContent=fmt.format(inv)+' /mes';
-  document.getElementById('fNote').innerHTML = exced<0
+  document.getElementById('fInv').textContent=fmt.format(f.inv)+' /mes';
+  document.getElementById('fNote').innerHTML = f.exced<0
     ? `<span style="color:var(--bad)">⚠ Tus gastos + cuotas superan el ingreso. Bajá gastos, cuotas, o subí el ingreso.</span>`
-    : `≈ <b style="color:var(--tx)">${fmt.format(inv*12)}</b> al año a la cartera. El resto del excedente (${fmt.format(Math.max(0,exced-inv))}/mes) queda de colchón.`;
+    : `≈ <b style="color:var(--tx)">${fmt.format(f.inv*12)}</b> al año a la cartera. El resto del excedente (${fmt.format(Math.max(0,f.exced-f.inv))}/mes) queda de colchón.`;
   fill(document.getElementById('cuotas'),cuotas/800000,css('--warn'));
   fill(document.getElementById('pctInv'),pct/100,css('--idx'));
 
   // asignacion
-  const w=state.weights, sum=Object.values(w).reduce((a,b)=>a+b,0)||1;
+  const w=f.w, sum=f.sum;
   const bar=document.getElementById('bar'); bar.innerHTML='';
   const leg=document.getElementById('legend'); leg.innerHTML='';
-  let risk=0,grow=0,ret=0;
   buckets.forEach(b=>{
     const c=css(b.v), frac=w[b.id]/sum, pc=frac*100;
     const sp=document.createElement('span'); sp.style.width=pc+'%'; sp.style.background=c; bar.appendChild(sp);
     const p=document.getElementById('pct-'+b.id), m=document.getElementById('mon-'+b.id), sl=document.getElementById('sl-'+b.id);
-    if(p){p.textContent=pc.toFixed(0)+'%'; m.textContent=fmt.format(inv*frac)+'/mes'; if(+sl.value!==w[b.id])sl.value=w[b.id]; fill(sl,w[b.id]/100,c);}
+    if(p){p.textContent=pc.toFixed(0)+'%'; m.textContent=fmt.format(f.inv*frac)+'/mes'; if(+sl.value!==w[b.id])sl.value=w[b.id]; fill(sl,w[b.id]/100,c);}
     if(pc>=3){const d=document.createElement('div');d.innerHTML=`<span class="dot" style="background:${c}"></span>${b.name.split(' ·')[0].split(' (')[0]} ${pc.toFixed(0)}%`;leg.appendChild(d);}
-    risk+=frac*b.risk; grow+=frac*b.grow; ret+=frac*b.ret;
   });
-  document.getElementById('riesgoV').textContent=risk.toFixed(1)+'/5';
-  const rM=document.getElementById('riesgoM'); rM.style.width=(risk/5*100)+'%';
-  rM.style.background=risk<2.2?css('--good'):risk<3.6?css('--warn'):css('--bad');
-  document.getElementById('growV').textContent=grow.toFixed(1)+'/5';
-  document.getElementById('growM').style.width=(grow/5*100)+'%';
-  document.getElementById('retV').textContent='~'+ret.toFixed(1)+'%';
+  document.getElementById('riesgoV').textContent=f.risk.toFixed(1)+'/5';
+  const rM=document.getElementById('riesgoM'); rM.style.width=(f.risk/5*100)+'%';
+  rM.style.background=f.risk<2.2?css('--good'):f.risk<3.6?css('--warn'):css('--bad');
+  document.getElementById('growV').textContent=f.grow.toFixed(1)+'/5';
+  document.getElementById('growM').style.width=(f.grow/5*100)+'%';
+  document.getElementById('retV').textContent='~'+f.ret.toFixed(1)+'%';
   document.getElementById('sumaRaw').textContent=sum;
 
   // mudanza
-  const obj=num('objMud'), ya=num('objYa'), falta=Math.max(0,obj-ya), porMes=Math.ceil(falta/6);
-  const capacidad=Math.max(0,exced);
+  const obj=inputs.objMud, ya=inputs.objYa, falta=Math.max(0,obj-ya), porMes=Math.ceil(falta/6);
+  const capacidad=Math.max(0,f.exced);
   document.getElementById('mudPlan').innerHTML = falta<=0
     ? `<span style="color:var(--good)">✓ Mudanza cubierta.</span> Con <b>${fmt.format(ya)}</b> ahorrados y un costo de ${fmt.format(obj)}, te sobran <b>${fmt.format(ya-obj)}</b>. Ese excedente —más lo que tus FCI siguen rindiendo— ya puede ir a la cartera.`
     : `Ya tenés <b>${fmt.format(ya)}</b>. Faltan <b>${fmt.format(falta)}</b> → ~${fmt.format(porMes)}/mes en 6 meses. `+
@@ -855,21 +913,19 @@ function render(){
                        :`<span style="color:var(--good)">✓ Entra en tu excedente.</span>`);
 
   // proyeccion Monte Carlo (dinamica segun todo el dashboard)
-  const years=Math.max(1,Math.round(num('projYrs')));
-  document.getElementById('projYrsV').textContent=years+(years===1?' año':' años');
-  fill(document.getElementById('projYrs'),(years-1)/34,css('--good'));
-  const goal=num('projGoal'), volA=portfolioVol(w,sum);
-  document.getElementById('goalUsd').textContent=PRICES.mep?'≈ US$'+Math.round(goal/PRICES.mep).toLocaleString('es-AR')+' a MEP de hoy':'';
-  scheduleMC({C:inv,P0:num('projP0'),muA:ret/100,volA,years,goal});
+  document.getElementById('projYrsV').textContent=f.years+(f.years===1?' año':' años');
+  fill(document.getElementById('projYrs'),(f.years-1)/34,css('--good'));
+  document.getElementById('goalUsd').textContent=PRICES.mep?'≈ US$'+Math.round(f.goal/PRICES.mep).toLocaleString('es-AR')+' a MEP de hoy':'';
+  scheduleMC({C:f.inv,P0:f.P0,muA:f.ret/100,volA:f.volA,years:f.years,goal:f.goal});
 
   // metas de vida (feature 4)
-  LAST={inv,muA:ret/100,volA,P0:num('projP0')}; scheduleGoals();
+  LAST={inv:f.inv,muA:f.ret/100,volA:f.volA,P0:f.P0}; scheduleGoals();
 
   // cartera real + rebalanceo (feature 2)
   renderRebalance(w,sum);
 
   // ordenes del mes (precios en vivo)
-  renderOrders(inv,w,sum);
+  renderOrders(f.inv,w,sum);
 }
 
 document.getElementById('pxBtn').onclick=loadPrices;
