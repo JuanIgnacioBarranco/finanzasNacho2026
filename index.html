@@ -5,6 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow, noarchive">
 <title>Acceso privado</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#f6b23a">
+<!-- iOS ignora el manifest para "Añadir a pantalla de inicio": sin esto usa una
+     captura de pantalla en vez del icono. Rutas relativas (no "/icons/..."): el sitio
+     se sirve desde el subdirectorio /finanzasNacho2026/ de GitHub Pages. -->
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Finanzas">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
@@ -75,7 +84,7 @@
   label{display:block;font-size:12px;color:var(--mut);margin-bottom:7px;font-weight:500}
   .money{display:flex;align-items:center;gap:7px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:0 11px}
   .money .cur{color:var(--faint);font-family:var(--disp);font-size:13px}
-  input[type=number]{width:100%;background:transparent;border:0;color:var(--tx);padding:11px 0;font-size:15px;font-family:var(--disp);font-feature-settings:"tnum" 1}
+  input[type=number],input[type=text]{width:100%;background:transparent;border:0;color:var(--tx);padding:11px 0;font-size:15px;font-family:var(--disp);font-feature-settings:"tnum" 1}
   input:focus-visible{outline:2px solid var(--purple);outline-offset:2px}
   .money:focus-within{border-color:var(--line2)}
   .three{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
@@ -191,6 +200,16 @@
   .pxstrip span{display:flex;gap:6px;align-items:center}
   .ordrow{padding:11px 0;border-top:1px solid var(--line)}
   .ordrow:first-child{border-top:0}
+  /* tabla comparativa de escenarios: scrollea sola en horizontal para que la pagina nunca lo haga */
+  .cmpwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:12px}
+  .cmp{border-collapse:collapse;width:100%;min-width:580px;font-size:12.5px}
+  .cmp th,.cmp td{padding:9px 10px;text-align:right;border-top:1px solid var(--line);white-space:nowrap}
+  .cmp th{color:var(--mut);font-weight:500;font-size:10.5px;letter-spacing:.4px;text-transform:uppercase;border-top:0}
+  .cmp th:first-child,.cmp td:first-child{text-align:left;white-space:normal}
+  .cmp td{font-family:var(--disp)}
+  .cmp tr.now td{background:rgba(246,178,58,.07);color:var(--tx);font-weight:600}
+  .cmp tr.now td:first-child{box-shadow:inset 2px 0 0 var(--gold)}
+  .cmp .oy{color:var(--faint);font-size:11px;font-weight:400;font-family:var(--body)}
   .ordtop{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
   .ordtop .l{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;font-family:var(--disp)}
   .ordtop .l .mut{font-weight:400;font-family:var(--body)}
@@ -279,6 +298,7 @@
         <div class="bt">Cartera 2026</div>
         <div class="bs">Asignación personal · CEDEARs · IOL</div>
       </div>
+      <button class="btn" id="installBtn" style="margin-left:auto;display:none">📲 Instalar</button>
     </div>
     <p class="lead">Mové los deslizadores para repartir tu cartera. Elegí perfil y plazo para cargar una asignación sugerida; abajo, tu flujo mensual real (ingreso − gastos − cuotas) define cuántos pesos van a cada activo.</p>
     <div class="chips">
@@ -540,6 +560,33 @@
     <div class="mini" style="margin-top:11px;color:var(--faint)">Cada meta se evalúa con el mismo motor Monte Carlo y tu aporte/cartera actuales. Montos en US$ (convertidos a pesos de hoy con el MEP en vivo). El “aporte extra” es a valor esperado; la probabilidad es sobre 400 simulaciones. Edad base 27 años.</div>
   </section>
 
+  <!-- ESCENARIOS -->
+  <section class="panel" style="margin-top:15px">
+    <div class="phead">
+      <span class="ic ic-mut"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></span>
+      <div><h2>Escenarios</h2><div class="sub">Guardá fotos con nombre de tu tablero para comparar después</div></div>
+    </div>
+    <div class="field" style="margin-top:0">
+      <label>Nombre del escenario</label>
+      <div class="money"><input type="text" id="scnName" placeholder="ej. post-aumento $2M" maxlength="60"></div>
+    </div>
+    <div class="total" style="margin-top:12px">
+      <span class="mini" id="scnMsg"></span>
+      <button class="btn" id="scnSave">Guardá este escenario</button>
+    </div>
+    <div id="scnUndoBox" style="margin-top:12px;display:none">
+      <button class="btn" id="scnUndo">↺ Deshacer carga</button>
+    </div>
+    <div id="scnList" style="margin-top:15px"></div>
+
+    <div class="field" style="margin-top:22px">
+      <div class="slabel"><label style="margin:0">Comparar todo a</label><span class="v" id="cmpYrsVal">20 años</span></div>
+      <input type="range" id="cmpYrs" min="1" max="35" value="20">
+      <div class="mini">Todas las filas se calculan al mismo horizonte. Si cada una usara el suyo, los números no serían comparables entre sí.</div>
+    </div>
+    <div class="cmpwrap"><table class="cmp" id="cmpTable"></table></div>
+  </section>
+
   <p class="disc">
     <b>Aviso:</b> tablero <b>educativo y personal</b>, no es asesoramiento financiero ni recomendación de compra. Porcentajes, retornos y ejemplos son ilustrativos: rendimientos pasados no garantizan futuros y toda inversión puede perder valor (BTC y ETFs temáticos tienen volatilidad alta). *El retorno es un promedio ponderado grosero en USD/real, no una proyección. Antes de invertir montos relevantes, informate por vos mismo y, si podés, consultá con un asesor matriculado (idóneo CNV). Tickers y broker se nombran solo como ejemplo.
   </p>
@@ -585,8 +632,24 @@ const TMAP={
   tem:[{t:'GLD',w:.40,name:'Oro'},{t:'SMH',w:.30,name:'Semis/IA'},{t:'CIBR',w:.15,name:'Ciberseg.'},{t:'URA',w:.15,name:'Uranio'}],
 };
 let PRICES={mep:null,btcUsd:null,cedears:null,ts:null};
-try{const _c=JSON.parse(localStorage.getItem('cnf_prices')||'null'); if(_c)PRICES=_c;}catch(e){}
+// Retrocompat: un cnf_prices guardado por una version vieja (sin el campo `ts`) se
+// mezcla con los defaults en vez de reemplazarlos entero, asi el campo `ts` siempre
+// existe (null si no se sabe) y nada aguas abajo se rompe por asumir que esta.
+try{const _c=JSON.parse(localStorage.getItem('cnf_prices')||'null'); if(_c)PRICES=Object.assign({},PRICES,_c);}catch(e){}
+function pricesSnapshot(){return PRICES;} // testeable: expone el PRICES vivo (`ts` siempre presente tras el merge retrocompat)
 function bucketColor(id){return {liq:'--liq',idx:'--idx',btc:'--btc',tem:'--tem'}[id];}
+// pxTsLabel: aviso de que tan viejos son los precios mostrados en #pxStrip. Sin
+// conexion mostramos la FECHA completa (no solo la hora) — si dijeramos nomas
+// "actualizado 14:32" con la app abierta offline un dia despues, parece que son de
+// recien. Con conexion se mantiene el aviso corto de siempre. Tolera un PRICES sin
+// `ts` (dato viejo) sin romper: cae al mensaje neutro.
+function pxTsLabel(p){
+  if(!p||!p.ts) return 'sin datos aún';
+  const d=new Date(p.ts);
+  if(isNaN(d.getTime())) return 'sin datos aún';
+  const offline=(typeof navigator!=='undefined' && navigator.onLine===false);
+  return offline ? ('precios del '+fmtScnDate(p.ts)) : ('actualizado '+d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}));
+}
 
 async function loadPrices(){
   const btn=document.getElementById('pxBtn'); if(btn){btn.disabled=true;btn.textContent='Actualizando…';}
@@ -599,7 +662,12 @@ async function loadPrices(){
   if(o.mep!=null)PRICES.mep=o.mep;
   if(o.btcUsd!=null)PRICES.btcUsd=o.btcUsd;
   if(o.cedears)PRICES.cedears=o.cedears;
-  PRICES.ts=new Date().toISOString();
+  // Promise.allSettled nunca rechaza: si arrancamos offline las 3 fetch fallan y `o`
+  // queda vacio, pero sin este guard igual pisariamos PRICES.ts con "ahora" y
+  // persistiriamos eso en localStorage — el timestamp REAL de la ultima vez que hubo
+  // datos de verdad se perderia sin vuelta atras, y pxTsLabel() mostraria "precios del
+  // <hoy>" con precios de hace dias. Solo actualizamos ts si trajimos algo nuevo.
+  if(o.mep!=null||o.btcUsd!=null||o.cedears)PRICES.ts=new Date().toISOString();
   try{localStorage.setItem('cnf_prices',JSON.stringify(PRICES));}catch(e){}
   if(btn){btn.disabled=false;btn.textContent='↻ Actualizar precios';}
   render();
@@ -617,7 +685,7 @@ function renderOrders(inv,w,sum){
   document.getElementById('pxStrip').innerHTML=
     (mep?`<span>Dólar MEP <b>${fmt.format(mep)}</b></span>`:'')+
     (btcU?`<span>BTC <b>US$${Math.round(btcU).toLocaleString('es-AR')}</b></span>`:'')+
-    (PRICES.ts?`<span class="mut">actualizado ${new Date(PRICES.ts).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}</span>`:`<span class="mut">sin datos aún</span>`);
+    `<span class="mut">${pxTsLabel(PRICES)}</span>`;
   const liqP=inv*(w.liq/sum);
   const items=[];
   ['idx','btc','tem'].forEach(bid=>{const bp=inv*(w[bid]/sum);
@@ -646,13 +714,13 @@ function renderOrders(inv,w,sum){
 function seg(id,cb){document.querySelectorAll('#'+id+' button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('#'+id+' button').forEach(x=>x.classList.remove('on'));
   b.classList.add('on'); cb(b.dataset.v);});}
-seg('perfil',v=>{state.perfil=v;state.weights=preset(v,state.plazo);buildAlloc();render();});
+seg('perfil',v=>{state.perfil=v;state.weights=preset(v,state.plazo);buildAlloc();render();scheduleSave();});
 seg('plazo', v=>{state.plazo=v;state.weights=preset(state.perfil,v);
   document.getElementById('projYrs').value={corto:3,mediano:8,largo:20}[v];
-  buildAlloc();render();});
-seg('ingreso',v=>{document.getElementById('ingresoNum').value=v;render();});
+  buildAlloc();render();scheduleSave();});
+seg('ingreso',v=>{document.getElementById('ingresoNum').value=v;render();scheduleSave();});
 ['ingresoNum','gAlq','gCom','gImp','cuotas','pctInv','objMud','objYa','projYrs','projP0','projGoal'].forEach(id=>document.getElementById(id).addEventListener('input',render));
-document.getElementById('reset').onclick=()=>{state.weights=preset(state.perfil,state.plazo);buildAlloc();render();};
+document.getElementById('reset').onclick=()=>{state.weights=preset(state.perfil,state.plazo);buildAlloc();render();scheduleSave();};
 
 function rdots(n,c){let s='';for(let i=1;i<=5;i++)s+=`<span class="rp" style="background:${i<=n?c:''}"></span>`;return s;}
 function fill(el,frac,c){const p=Math.max(0,Math.min(1,frac))*100;el.style.background=`linear-gradient(90deg,${c} ${p}%,#232c40 ${p}%)`;}
@@ -682,7 +750,9 @@ function portfolioVol(w,sum){const rho=0.4,k=['liq','idx','btc','tem'];let v=0;
 function randn(){let u=0,v=0;while(!u)u=Math.random();while(!v)v=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(6.2831853*v);}
 let _mcTimer=null;
 function scheduleMC(a){clearTimeout(_mcTimer);_mcTimer=setTimeout(()=>drawMC(a),110);}
-function drawMC(a){
+// mcStats es la corrida Monte Carlo en sí: pura en el sentido de que no toca el DOM,
+// pero NO es determinista porque randn() tira de Math.random(). drawMC sólo dibuja.
+function mcStats(a){
   const C=a.C,P0=a.P0,muA=a.muA,volA=a.volA,years=a.years,goal=a.goal;
   const months=Math.max(1,Math.round(years*12)),N=500;
   const sLog=Math.sqrt(Math.log(1+(volA*volA)/Math.pow(1+muA,2))), mLog=Math.log(1+muA)-0.5*sLog*sLog;
@@ -694,9 +764,20 @@ function drawMC(a){
     for(let t=0;t<=months;t++){ if(t>0)v=v*Math.exp(mm+sm*randn())+C; if(si<sM.length&&t===sM[si]){cols[si][p]=v;si++;} }
     finals[p]=v; if(v>=goal)reached++;
   }
-  const pctF=(arr,q)=>{const b=Float64Array.from(arr).sort();return b[Math.min(b.length-1,Math.floor(q*b.length))];};
   const p10=[],p50=[],p90=[]; cols.forEach(c=>{const b=Float64Array.from(c).sort();const gg=q=>b[Math.min(b.length-1,Math.floor(q*b.length))];p10.push(gg(.1));p50.push(gg(.5));p90.push(gg(.9));});
-  const med=pctF(finals,.5),lo=pctF(finals,.1),hi=pctF(finals,.9),tot=P0+C*months,prob=100*reached/N;
+  const prob=100*reached/N;
+  return {p10,p50,p90,prob};
+}
+function drawMC(a){
+  const C=a.C,P0=a.P0,muA=a.muA,volA=a.volA,years=a.years,goal=a.goal;
+  const months=Math.max(1,Math.round(years*12));
+  // sM se recalcula acá (además de adentro de mcStats) sólo para tener los X del gráfico;
+  // es geometría del eje de tiempo, no estadística, así que no vale la pena colarla en el
+  // contrato de retorno de mcStats.
+  const step=Math.max(1,Math.round(months/70)), sM=[];
+  for(let t=0;t<=months;t+=step)sM.push(t); if(sM[sM.length-1]!==months)sM.push(months);
+  const {p10,p50,p90,prob}=mcStats(a);
+  const med=p50[p50.length-1],lo=p10[p10.length-1],hi=p90[p90.length-1],tot=P0+C*months;
   document.getElementById('pbVal').textContent=fmt.format(Math.round(med));
   document.getElementById('pbYrs').textContent=years;
   document.getElementById('pbSub').innerHTML=`Rango probable (p10–p90): <b style="color:#cfd8e8">${fmt.format(Math.round(lo))}</b> → <b style="color:#cfd8e8">${fmt.format(Math.round(hi))}</b>`;
@@ -720,9 +801,11 @@ function drawMC(a){
 }
 
 // --- cartera real + rebalanceo (feature 2) ---
+// cnf_holdings queda sólo como lectura de migración (mejora #5 tarea 2): la
+// escritura duplicada (saveHoldings) se eliminó porque hLiq/hIdx/hBtc/hTem ahora
+// viven en el snapshot único (cnf_state_v1, ver scheduleSave/restore más abajo).
 let holdings={liq:0,idx:0,btc:0,tem:0};
 try{const _h=JSON.parse(localStorage.getItem('cnf_holdings')||'null'); if(_h)holdings=Object.assign(holdings,_h);}catch(e){}
-function saveHoldings(){try{localStorage.setItem('cnf_holdings',JSON.stringify(holdings));}catch(e){}}
 function miniBar(pctMap,label){let seg='';['liq','idx','btc','tem'].forEach(b=>{const p=(pctMap[b]||0)*100;if(p>0.3)seg+=`<span style="width:${p}%;background:${css(bucketColor(b))}"></span>`;});return `<div class="rbrow"><span class="rblab">${label}</span><div class="bar mini">${seg}</div></div>`;}
 function renderRebalance(w,sum){
   const box=document.getElementById('rebal'); if(!box)return;
@@ -775,7 +858,7 @@ function buildGoals(){
     document.getElementById('gn-'+i).addEventListener('input',e=>{goals[i].name=e.target.value;});
     document.getElementById('gu-'+i).addEventListener('input',e=>{goals[i].usd=+e.target.value||0;computeGoals();});
     document.getElementById('gy-'+i).addEventListener('input',e=>{goals[i].years=Math.max(1,Math.min(40,+e.target.value||1));computeGoals();});
-    document.getElementById('gx-'+i).onclick=()=>{goals.splice(i,1);buildGoals();computeGoals();};
+    document.getElementById('gx-'+i).onclick=()=>{goals.splice(i,1);buildGoals();computeGoals();scheduleSave();};
   });
 }
 function computeGoals(){
@@ -804,50 +887,108 @@ function computeGoals(){
   });
 }
 
-function render(){
-  // flujo mensual
-  const ingreso=num('ingresoNum'), gastos=num('gAlq')+num('gCom')+num('gImp'), cuotas=num('cuotas');
-  const exced=ingreso-gastos-cuotas, pct=num('pctInv');
+// INPUT_IDS: única fuente de verdad de los 15 ids de <input> que entran al snapshot.
+// readDOM() los lee acá abajo y restore() (más adelante) vuelve a aplicarlos
+// iterando este MISMO array — antes vivían duplicados a mano en dos listas que
+// se podían desincronizar en silencio si alguien agregaba un campo a una y se
+// olvidaba de la otra.
+const INPUT_IDS=['ingresoNum','gAlq','gCom','gImp','cuotas','pctInv','objYa','objMud','projYrs','projP0','projGoal','hLiq','hIdx','hBtc','hTem'];
+
+// readDOM: única lectura del DOM, devuelve un snapshot plano (mejora #5 tarea 1).
+// Con esto se puede recalcular un escenario guardado sin tenerlo cargado en pantalla.
+function readDOM(){
+  const inputs={};
+  INPUT_IDS.forEach(id=>{ inputs[id]=num(id); });
+  return {
+    v: 1,
+    perfil: state.perfil,
+    plazo: state.plazo,
+    weights: {...state.weights},
+    inputs,
+    goals: goals.map(g=>({name:g.name, usd:g.usd, years:g.years})),
+  };
+}
+
+// computeFlow: TODA la matemática del flujo mensual + cartera, pura. No toca document,
+// no llama num() ni css(). Sólo depende del snapshot y de las funciones puras ya
+// existentes (portfolioVol). Esto es lo que las tareas 2-4 necesitan para calcular
+// un escenario sin renderizarlo.
+function computeFlow(snap){
+  // Defensa en profundidad: readScenarios() ya sanea en la fuente (ver mas abajo),
+  // pero computeFlow no puede depender de ser SIEMPRE llamado con algo que paso por
+  // ahi -snapshot() en vivo siempre trae inputs/weights bien formados, pero un snap
+  // crudo (localStorage editado a mano, un consumidor futuro que se olvide de sanear)
+  // no tiene por que. Sin esto, `inputs.ingresoNum` con inputs undefined tira un
+  // TypeError; si eso pasa dentro del timer de scheduleCompare() nadie lo ve y el
+  // tablero queda muerto en silencio. Los defaults son objetos vacios (no valores
+  // inventados): computeFlow ya tolera claves faltantes (dan NaN, no explotan), lo
+  // unico que no tolera es que inputs/weights mismos no sean objetos.
+  const inputs=(snap && typeof snap.inputs==='object' && snap.inputs) || {};
+  const weights=(snap && typeof snap.weights==='object' && snap.weights) || {};
+  const ingreso=inputs.ingresoNum, gastos=inputs.gAlq+inputs.gCom+inputs.gImp, cuotas=inputs.cuotas;
+  const exced=ingreso-gastos-cuotas, pct=inputs.pctInv;
   const inv=Math.max(0,Math.round(exced*pct/100));
+
+  const w=weights, sum=Object.values(w).reduce((a,b)=>a+b,0)||1;
+  let risk=0,grow=0,ret=0;
+  buckets.forEach(b=>{
+    const frac=w[b.id]/sum;
+    risk+=frac*b.risk; grow+=frac*b.grow; ret+=frac*b.ret;
+  });
+  const volA=portfolioVol(w,sum);
+
+  const years=Math.max(1,Math.round(inputs.projYrs));
+  const goal=inputs.projGoal, P0=inputs.projP0;
+
+  // risk/grow no están en el mínimo pedido para computeFlow, pero salen del mismo
+  // loop ponderado que ret (mismo w/sum) — calcularlos acá evita repetir el loop en render().
+  return {exced, inv, ret, w, sum, volA, years, goal, P0, risk, grow};
+}
+
+function render(){
+  const snap=readDOM();
+  const f=computeFlow(snap);
+  const {inputs}=snap;
+  const ingreso=inputs.ingresoNum, gastos=inputs.gAlq+inputs.gCom+inputs.gImp, cuotas=inputs.cuotas, pct=inputs.pctInv;
+
+  // flujo mensual
   document.getElementById('cuotasVal').textContent=fmt.format(cuotas);
   document.getElementById('pctVal').textContent=pct+'%';
   document.getElementById('fIng').textContent=fmt.format(ingreso);
   document.getElementById('fGastos').textContent='− '+fmt.format(gastos);
   document.getElementById('fCuo').textContent='− '+fmt.format(cuotas);
-  document.getElementById('fExced').textContent=fmt.format(exced);
-  document.getElementById('fExced').style.color=exced<0?css('--bad'):css('--tx');
+  document.getElementById('fExced').textContent=fmt.format(f.exced);
+  document.getElementById('fExced').style.color=f.exced<0?css('--bad'):css('--tx');
   document.getElementById('fPctLbl').textContent=`Para invertir (${pct}% del excedente)`;
-  document.getElementById('fInv').textContent=fmt.format(inv)+' /mes';
-  document.getElementById('fNote').innerHTML = exced<0
+  document.getElementById('fInv').textContent=fmt.format(f.inv)+' /mes';
+  document.getElementById('fNote').innerHTML = f.exced<0
     ? `<span style="color:var(--bad)">⚠ Tus gastos + cuotas superan el ingreso. Bajá gastos, cuotas, o subí el ingreso.</span>`
-    : `≈ <b style="color:var(--tx)">${fmt.format(inv*12)}</b> al año a la cartera. El resto del excedente (${fmt.format(Math.max(0,exced-inv))}/mes) queda de colchón.`;
+    : `≈ <b style="color:var(--tx)">${fmt.format(f.inv*12)}</b> al año a la cartera. El resto del excedente (${fmt.format(Math.max(0,f.exced-f.inv))}/mes) queda de colchón.`;
   fill(document.getElementById('cuotas'),cuotas/800000,css('--warn'));
   fill(document.getElementById('pctInv'),pct/100,css('--idx'));
 
   // asignacion
-  const w=state.weights, sum=Object.values(w).reduce((a,b)=>a+b,0)||1;
+  const w=f.w, sum=f.sum;
   const bar=document.getElementById('bar'); bar.innerHTML='';
   const leg=document.getElementById('legend'); leg.innerHTML='';
-  let risk=0,grow=0,ret=0;
   buckets.forEach(b=>{
     const c=css(b.v), frac=w[b.id]/sum, pc=frac*100;
     const sp=document.createElement('span'); sp.style.width=pc+'%'; sp.style.background=c; bar.appendChild(sp);
     const p=document.getElementById('pct-'+b.id), m=document.getElementById('mon-'+b.id), sl=document.getElementById('sl-'+b.id);
-    if(p){p.textContent=pc.toFixed(0)+'%'; m.textContent=fmt.format(inv*frac)+'/mes'; if(+sl.value!==w[b.id])sl.value=w[b.id]; fill(sl,w[b.id]/100,c);}
+    if(p){p.textContent=pc.toFixed(0)+'%'; m.textContent=fmt.format(f.inv*frac)+'/mes'; if(+sl.value!==w[b.id])sl.value=w[b.id]; fill(sl,w[b.id]/100,c);}
     if(pc>=3){const d=document.createElement('div');d.innerHTML=`<span class="dot" style="background:${c}"></span>${b.name.split(' ·')[0].split(' (')[0]} ${pc.toFixed(0)}%`;leg.appendChild(d);}
-    risk+=frac*b.risk; grow+=frac*b.grow; ret+=frac*b.ret;
   });
-  document.getElementById('riesgoV').textContent=risk.toFixed(1)+'/5';
-  const rM=document.getElementById('riesgoM'); rM.style.width=(risk/5*100)+'%';
-  rM.style.background=risk<2.2?css('--good'):risk<3.6?css('--warn'):css('--bad');
-  document.getElementById('growV').textContent=grow.toFixed(1)+'/5';
-  document.getElementById('growM').style.width=(grow/5*100)+'%';
-  document.getElementById('retV').textContent='~'+ret.toFixed(1)+'%';
+  document.getElementById('riesgoV').textContent=f.risk.toFixed(1)+'/5';
+  const rM=document.getElementById('riesgoM'); rM.style.width=(f.risk/5*100)+'%';
+  rM.style.background=f.risk<2.2?css('--good'):f.risk<3.6?css('--warn'):css('--bad');
+  document.getElementById('growV').textContent=f.grow.toFixed(1)+'/5';
+  document.getElementById('growM').style.width=(f.grow/5*100)+'%';
+  document.getElementById('retV').textContent='~'+f.ret.toFixed(1)+'%';
   document.getElementById('sumaRaw').textContent=sum;
 
   // mudanza
-  const obj=num('objMud'), ya=num('objYa'), falta=Math.max(0,obj-ya), porMes=Math.ceil(falta/6);
-  const capacidad=Math.max(0,exced);
+  const obj=inputs.objMud, ya=inputs.objYa, falta=Math.max(0,obj-ya), porMes=Math.ceil(falta/6);
+  const capacidad=Math.max(0,f.exced);
   document.getElementById('mudPlan').innerHTML = falta<=0
     ? `<span style="color:var(--good)">✓ Mudanza cubierta.</span> Con <b>${fmt.format(ya)}</b> ahorrados y un costo de ${fmt.format(obj)}, te sobran <b>${fmt.format(ya-obj)}</b>. Ese excedente —más lo que tus FCI siguen rindiendo— ya puede ir a la cartera.`
     : `Ya tenés <b>${fmt.format(ya)}</b>. Faltan <b>${fmt.format(falta)}</b> → ~${fmt.format(porMes)}/mes en 6 meses. `+
@@ -855,28 +996,361 @@ function render(){
                        :`<span style="color:var(--good)">✓ Entra en tu excedente.</span>`);
 
   // proyeccion Monte Carlo (dinamica segun todo el dashboard)
-  const years=Math.max(1,Math.round(num('projYrs')));
-  document.getElementById('projYrsV').textContent=years+(years===1?' año':' años');
-  fill(document.getElementById('projYrs'),(years-1)/34,css('--good'));
-  const goal=num('projGoal'), volA=portfolioVol(w,sum);
-  document.getElementById('goalUsd').textContent=PRICES.mep?'≈ US$'+Math.round(goal/PRICES.mep).toLocaleString('es-AR')+' a MEP de hoy':'';
-  scheduleMC({C:inv,P0:num('projP0'),muA:ret/100,volA,years,goal});
+  document.getElementById('projYrsV').textContent=f.years+(f.years===1?' año':' años');
+  fill(document.getElementById('projYrs'),(f.years-1)/34,css('--good'));
+  document.getElementById('goalUsd').textContent=PRICES.mep?'≈ US$'+Math.round(f.goal/PRICES.mep).toLocaleString('es-AR')+' a MEP de hoy':'';
+  scheduleMC({C:f.inv,P0:f.P0,muA:f.ret/100,volA:f.volA,years:f.years,goal:f.goal});
 
   // metas de vida (feature 4)
-  LAST={inv,muA:ret/100,volA,P0:num('projP0')}; scheduleGoals();
+  LAST={inv:f.inv,muA:f.ret/100,volA:f.volA,P0:f.P0}; scheduleGoals(); scheduleCompare();
 
   // cartera real + rebalanceo (feature 2)
   renderRebalance(w,sum);
 
   // ordenes del mes (precios en vivo)
-  renderOrders(inv,w,sum);
+  renderOrders(f.inv,w,sum);
 }
 
+// --- persistencia total del estado (mejora #5 tarea 2) ---
+const PERFILES=['conservador','moderado','arriesgado'], PLAZOS=['corto','mediano','largo'];
+// INPUT_IDS ya está definida arriba, junto a readDOM() — restore() reusa esa misma
+// lista (no una copia) para que ambas direcciones del snapshot queden atadas.
+const HOLDINGS_ID2KEY={hLiq:'liq',hIdx:'idx',hBtc:'btc',hTem:'tem'};
+
+// snapshot: alias trivial de readDOM (tarea 1) — el nombre que usan autosave/restore
+// es "snapshot", pero la lógica ya vive en readDOM; no se duplica.
+function snapshot(){return readDOM();}
+
+// restore: aplica un snapshot guardado al tablero. Tolerante a datos parciales o
+// corruptos (localStorage viejo, editado a mano, o con v de una versión futura):
+// ante cualquier campo faltante o con el tipo equivocado se conserva el valor
+// actual/default en vez de romper el tablero.
+function restore(s){
+  if(!s || typeof s!=='object' || s.v!==1) return;
+
+  if(PERFILES.includes(s.perfil)) state.perfil=s.perfil;
+  if(PLAZOS.includes(s.plazo)) state.plazo=s.plazo;
+
+  if(s.weights && typeof s.weights==='object'){
+    const w={...state.weights};
+    ['liq','idx','btc','tem'].forEach(k=>{ if(typeof s.weights[k]==='number' && Number.isFinite(s.weights[k])) w[k]=s.weights[k]; });
+    state.weights=w; // copia, nunca la referencia de s.weights (mismo riesgo de aliasing que readDOM)
+  }
+
+  if(s.inputs && typeof s.inputs==='object'){
+    INPUT_IDS.forEach(id=>{
+      const v=s.inputs[id];
+      if(typeof v!=='number' || !Number.isFinite(v)) return;
+      const el=document.getElementById(id);
+      if(el) el.value=v;
+      // hLiq/hIdx/hBtc/hTem también viven espejados en `holdings` (los lee
+      // renderRebalance); si no los sincronizamos acá quedan mintiendo hasta el
+      // próximo input manual del usuario.
+      const hk=HOLDINGS_ID2KEY[id];
+      if(hk) holdings[hk]=v;
+    });
+  }
+
+  if(Array.isArray(s.goals)){
+    goals=s.goals.filter(g=>g && typeof g==='object').map(g=>({
+      name: typeof g.name==='string' ? g.name : 'Nueva meta',
+      usd: (typeof g.usd==='number' && Number.isFinite(g.usd)) ? g.usd : 0,
+      years: (typeof g.years==='number' && Number.isFinite(g.years)) ? g.years : 1,
+    })); // copias, nunca los objetos de s.goals (mismo riesgo de aliasing que readDOM)
+  }
+
+  // refrescar el botón activo de los segmentos, si no la UI queda mintiendo
+  document.querySelectorAll('#perfil button').forEach(b=>b.classList.toggle('on', b.dataset.v===state.perfil));
+  document.querySelectorAll('#plazo button').forEach(b=>b.classList.toggle('on', b.dataset.v===state.plazo));
+
+  // buildAlloc/buildGoals/render ya disparan scheduleMC()/scheduleGoals() adentro de
+  // render() con los parámetros recién calculados; no se repiten sueltos acá porque
+  // scheduleMC(a) necesita ese objeto {C,P0,muA,volA,years,goal} y llamarla sin
+  // argumentos pisaría el timer recién armado con uno roto (drawMC(undefined)).
+  buildAlloc();
+  buildGoals();
+  render();
+}
+
+// autosave: debounce de 250ms sobre cnf_state_v1, con un único listener delegado en
+// document (no quince sueltos). #lockPass queda afuera explícitamente: ni entra al
+// snapshot (readDOM no lo lee) ni dispara guardado.
+let _saveTimer=null;
+function scheduleSave(){
+  clearTimeout(_saveTimer);
+  _saveTimer=setTimeout(()=>{
+    try{ localStorage.setItem('cnf_state_v1', JSON.stringify(snapshot())); }catch(e){}
+  }, 250);
+}
+
+// bootState: decide el estado inicial al arrancar. cnf_state_v1 gana si existe y es
+// válido (pisa incluso los hLiq/hIdx/hBtc/hTem recién sembrados desde cnf_holdings,
+// que sólo actúa como semilla para cuando cnf_state_v1 todavía no existe). Devuelve
+// true si restauró (restore() ya hizo su propio render()); si devuelve false, al
+// llamador le toca hacer el buildGoals/buildAlloc/render con los defaults.
+function bootState(){
+  let raw=null;
+  try{ raw=localStorage.getItem('cnf_state_v1'); }catch(e){}
+  if(!raw) return false;
+  let parsed=null;
+  try{ parsed=JSON.parse(raw); }catch(e){ return false; }
+  if(!parsed || parsed.v!==1) return false;
+  restore(parsed);
+  return true;
+}
+
+// --- escenarios guardados (mejora #5 tarea 3a): guardar, cargar, borrar, deshacer ---
+// cnf_scenarios_v1: array [{name, ts, snap}], preserva orden de creacion. cnf_undo_v1:
+// snapshot vivo justo antes de la ULTIMA carga (ausente si no hay nada que deshacer).
+// readScenarios() es la unica lectura, tolerante a JSON corrupto o a que la clave no
+// sea un array: la tarea 3b (tabla comparativa) deberia consumir escenarios via esta
+// misma funcion en vez de tocar localStorage directo.
+//
+// scenarioUsable: el saneo de bd5eaca (s.snap "es un objeto") no alcanza -un objeto
+// como {v:1} pasa esa validacion y despues revienta computeFlow() (inputs.ingresoNum
+// con inputs undefined), pero recien adentro del timer de scheduleCompare(), asi que
+// el throw queda invisible y deja la tabla comparativa rota. Esto valida la forma
+// MINIMA que computeFlow() necesita para no tirar y para no devolver una fila de puro
+// NaN: inputs con los 15 campos numericos de INPUT_IDS (la misma lista que arma
+// readDOM()) y weights con las 4 claves numericas de la cartera.
+//
+// DESCARTAR, no normalizar: a diferencia de goals en restore() (donde falta un campo
+// y con rellenar name/usd/years por default sigue siendo una "meta" con sentido),
+// ac los datos que faltarian son ingreso/gastos/cuotas/pesos de cartera reales.
+// Inventarlos en 0 armaria una fila de comparacion con numeros que el usuario nunca
+// guardo, mostrada como si fuera lo que efectivamente guardo -peor que no mostrarla.
+// Mismo criterio que el filtro ya usa para null/{}/sin snap, y con el mismo efecto:
+// esto NO reescribe localStorage (no se llama writeScenarios() aca), asi que el
+// crudo persiste tal cual hasta el proximo saveScenario()/deleteScenario() -no se
+// borra nada del usuario en este paso, solo se deja de usar lo que no se puede
+// calcular.
+function scenarioUsable(snap){
+  if(!snap || typeof snap!=='object') return false;
+  if(!snap.inputs || typeof snap.inputs!=='object') return false;
+  if(!INPUT_IDS.every(id=>typeof snap.inputs[id]==='number' && Number.isFinite(snap.inputs[id]))) return false;
+  if(!snap.weights || typeof snap.weights!=='object') return false;
+  if(!['liq','idx','btc','tem'].every(k=>typeof snap.weights[k]==='number' && Number.isFinite(snap.weights[k]))) return false;
+  return true;
+}
+function readScenarios(){
+  try{
+    const arr=JSON.parse(localStorage.getItem('cnf_scenarios_v1')||'[]');
+    if(!Array.isArray(arr)) return [];
+    // saneamos ACA, no en cada consumidor: un elemento malformado (null, {}, un
+    // objeto sin snap, o un snap sin la forma minima de scenarioUsable) no puede
+    // tirar abajo renderScenarios() en el arranque sincrono -eso mata TODO el
+    // tablero, no solo Escenarios- ni ningun otro consumidor futuro (la tabla
+    // comparativa, tarea 3b). Mismo criterio que restore() usa para goals.
+    return arr.filter(s=>s && typeof s==='object' && scenarioUsable(s.snap));
+  }catch(e){ return []; }
+}
+function writeScenarios(list){ try{ localStorage.setItem('cnf_scenarios_v1', JSON.stringify(list)); }catch(e){} }
+// deepCopy: JSON.parse(JSON.stringify(...)) alcanza porque snapshot() ya devuelve solo
+// datos planos (numeros/strings/arrays/objetos), nunca funciones ni fechas.
+function deepCopy(o){ return JSON.parse(JSON.stringify(o)); }
+function scnMsg(txt){ const el=document.getElementById('scnMsg'); if(el) el.textContent=txt; }
+function fmtScnDate(ts){ try{ return new Date(ts).toLocaleString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}); }catch(e){ return ''; } }
+
+function saveScenario(rawName){
+  const name=(rawName||'').trim();
+  if(!name){ scnMsg('Poné un nombre antes de guardar.'); return; }
+  const list=readScenarios();
+  const i=list.findIndex(s=>s && s.name===name);
+  if(i>=0 && !confirm(`Ya existe un escenario "${name}". ¿Lo sobrescribís?`)) return;
+  // deepCopy(): defensa en profundidad barata, no la unica barrera contra aliasing.
+  // snapshot() (via readDOM()) ya arma objetos frescos en cada llamada (spread en
+  // weights/inputs, .map() en goals) y ademas todo ronda por JSON.stringify/parse
+  // contra localStorage antes de volver a leerse, asi que dos escenarios compartiendo
+  // referencia ya es estructuralmente imposible hoy. Esto es la ultima red, por si el
+  // dia de mañana algo deja de clonar en el camino.
+  const entry={name, ts:Date.now(), snap:deepCopy(snapshot())};
+  if(i>=0) list[i]=entry; else list.push(entry);
+  writeScenarios(list);
+  renderScenarios();
+  scnMsg(`Escenario "${name}" guardado.`);
+}
+
+function applyScenario(idx){
+  const item=readScenarios()[idx]; if(!item) return;
+  // undo guarda el estado vivo tal cual estaba ANTES de esta carga (la red de
+  // seguridad del brief: cargar pisa la cartera real cargada a mano).
+  try{ localStorage.setItem('cnf_undo_v1', JSON.stringify(snapshot())); }catch(e){}
+  restore(item.snap);
+  scheduleSave();
+  renderScenarios();
+  scnMsg(`Escenario "${item.name}" cargado.`);
+}
+
+function deleteScenario(idx){
+  const list=readScenarios(); const item=list[idx]; if(!item) return;
+  if(!confirm(`¿Borrar el escenario "${item.name}"?`)) return;
+  list.splice(idx,1);
+  writeScenarios(list);
+  renderScenarios();
+  scnMsg(`Escenario "${item.name}" borrado.`);
+}
+
+function undoLoad(){
+  let raw=null; try{ raw=localStorage.getItem('cnf_undo_v1'); }catch(e){}
+  if(raw==null) return;
+  let prev=null; try{ prev=JSON.parse(raw); }catch(e){ prev=null; }
+  try{ localStorage.removeItem('cnf_undo_v1'); }catch(e){}
+  refreshUndoBtn(); // se oculta apenas se usa, haya o no prev valido
+  if(prev){ restore(prev); scheduleSave(); }
+}
+
+function refreshUndoBtn(){
+  const box=document.getElementById('scnUndoBox'); if(!box) return;
+  let has=false; try{ has=localStorage.getItem('cnf_undo_v1')!=null; }catch(e){}
+  box.style.display = has ? '' : 'none';
+}
+
+function renderScenarios(){
+  const box=document.getElementById('scnList'); if(!box) return;
+  const list=readScenarios();
+  box.innerHTML = list.length===0
+    ? `<div class="mini" style="color:var(--faint)">Todavía no guardaste ningún escenario. Ponele un nombre arriba y guardá tu cartera actual para comparar más adelante.</div>`
+    : list.map((s,i)=>`<div class="ordrow"><div class="ordtop"><span class="l">${esc(s.name)}</span><span class="m mut" style="font-weight:400;font-size:11.5px">${fmtScnDate(s.ts)}</span></div><div class="ordsub" style="display:flex;gap:8px;margin-top:8px"><button class="btn" data-act="load" data-idx="${i}">Cargá</button><button class="btn" data-act="del" data-idx="${i}">Borrá</button></div></div>`).join('');
+  box.querySelectorAll('button[data-act]').forEach(b=>{ b.onclick=()=>(b.dataset.act==='load'?applyScenario:deleteScenario)(+b.dataset.idx); });
+  refreshUndoBtn();
+  scheduleCompare();
+}
+
+// --- tabla comparativa de escenarios (mejora #5 tarea 3b) ---
+// TODAS las filas se calculan al mismo horizonte (#cmpYrs), ignorando a propósito el
+// projYrs propio de cada escenario. Si cada fila usara el suyo, los p50 serían peras
+// contra manzanas y la tabla no serviría para comparar, que es su única razón de ser.
+// El projYrs propio se muestra igual, como dato informativo.
+const _cmpMemo=new Map(), CMP_MEMO_MAX=60;
+function cmpYears(){ const el=document.getElementById('cmpYrs'); return Math.max(1,Math.round(el?+el.value||20:20)); }
+// flowInputsKey: la porcion MINIMA del snapshot que computeFlow() realmente lee (repasá
+// su cuerpo mas arriba): el objeto weights entero + estos 9 campos de inputs. Excluye
+// a propósito hLiq/hIdx/hBtc/hTem (cartera real: los usa renderRebalance, no
+// computeFlow) y goals (los usa computeGoals). Si la clave del memo usara el snapshot
+// ENTERO, tipear en los campos de cartera real cambiaria la clave sin que el resultado
+// de computeFlow cambiara un bit -> se disparaban los 500 paths de Monte Carlo de nuevo
+// y los p50/p10/p90 de la fila "Actual" bailaban en pantalla sin causa visible.
+function flowInputsKey(snap){
+  const i=(snap && typeof snap.inputs==='object' && snap.inputs) || {};
+  const w=(snap && typeof snap.weights==='object' && snap.weights) || {};
+  return JSON.stringify({w,
+    ingresoNum:i.ingresoNum, gAlq:i.gAlq, gCom:i.gCom, gImp:i.gImp, cuotas:i.cuotas,
+    pctInv:i.pctInv, projYrs:i.projYrs, projGoal:i.projGoal, projP0:i.projP0});
+}
+// La clave incluye el horizonte y lo que computeFlow() efectivamente consume (ver
+// flowInputsKey arriba): cambiar cualquiera de los dos recalcula, y un escenario
+// intacto no vuelve a correr los 500 paths del Monte Carlo (además de evitar que los
+// números bailen en pantalla en cada re-render).
+function metricsFor(snap,years){
+  const key=years+'|'+flowInputsKey(snap);
+  if(_cmpMemo.has(key)) return _cmpMemo.get(key);
+  const f=computeFlow(snap);
+  const st=mcStats({C:f.inv,P0:f.P0,muA:f.ret/100,volA:f.volA,years,goal:f.goal});
+  const last=a=>a[a.length-1];
+  const m={exced:f.exced,inv:f.inv,p10:last(st.p10),p50:last(st.p50),p90:last(st.p90),prob:st.prob,ownYears:f.years};
+  if(_cmpMemo.size>=CMP_MEMO_MAX)_cmpMemo.clear();
+  _cmpMemo.set(key,m);
+  return m;
+}
+function cmpRow(name,m,cls){
+  return `<tr class="${cls}"><td>${esc(name)}<br><span class="oy">su plan: ${m.ownYears} ${m.ownYears===1?'año':'años'}</span></td>`+
+    `<td>${fmt.format(m.exced)}</td><td>${fmt.format(m.inv)}</td><td>${fmtShort(m.p50)}</td>`+
+    `<td>${fmtShort(m.p10)} – ${fmtShort(m.p90)}</td><td>${Math.round(m.prob)}%</td></tr>`;
+}
+function renderCompare(){
+  const t=document.getElementById('cmpTable'); if(!t) return;
+  const y=cmpYears(), lab=document.getElementById('cmpYrsVal');
+  if(lab) lab.textContent=y+(y===1?' año':' años');
+  let rows=`<tr><th>Escenario</th><th>Excedente/mes</th><th>Aporte/mes</th><th>Mediana a ${y}a</th><th>Rango p10–p90</th><th>Prob. meta</th></tr>`;
+  rows+=cmpRow('Actual',metricsFor(snapshot(),y),'now');
+  readScenarios().forEach(s=>{
+    if(!s||!s.snap) return;
+    // Defensa en profundidad: readScenarios() ya filtra snaps sin la forma minima
+    // (scenarioUsable), pero este try/catch es la ULTIMA red, no la unica. Si
+    // computeFlow/mcStats fallaran por cualquier motivo no previsto hoy, esto corre
+    // adentro del timer de scheduleCompare() -una excepcion ahi no la ve nadie y
+    // tira abajo TODA la tabla (incluida la fila "Actual") en silencio. Mejor perder
+    // una sola fila con un aviso visible que dejar el tablero muerto sin explicacion.
+    try{
+      rows+=cmpRow(s.name||'(sin nombre)',metricsFor(s.snap,y),'');
+    }catch(e){
+      rows+=`<tr><td colspan="6" class="mini" style="color:var(--faint)">${esc(s.name||'(sin nombre)')}: no se pudo calcular</td></tr>`;
+    }
+  });
+  t.innerHTML=rows;
+}
+let _cmpTimer=null;
+function scheduleCompare(){ clearTimeout(_cmpTimer); _cmpTimer=setTimeout(renderCompare,150); }
+
 document.getElementById('pxBtn').onclick=loadPrices;
-document.getElementById('goalAdd').onclick=()=>{goals.push({name:'Nueva meta',usd:20000,years:5});buildGoals();computeGoals();};
-[['hLiq','liq'],['hIdx','idx'],['hBtc','btc'],['hTem','tem']].forEach(([id,b])=>{const el=document.getElementById(id);el.value=holdings[b]||0;el.addEventListener('input',e=>{holdings[b]=+e.target.value||0;saveHoldings();const s=Object.values(state.weights).reduce((a,c)=>a+c,0);renderRebalance(state.weights,s);});});
-buildGoals();
-buildAlloc(); render(); loadPrices();
+document.getElementById('goalAdd').onclick=()=>{goals.push({name:'Nueva meta',usd:20000,years:5});buildGoals();computeGoals();scheduleSave();};
+document.getElementById('scnSave').onclick=()=>{ saveScenario(document.getElementById('scnName').value); document.getElementById('scnName').value=''; };
+document.getElementById('scnUndo').onclick=undoLoad;
+// El input nativo del slider dispara a razon de muchos eventos por arrastre; correr
+// renderCompare() (500 paths de Monte Carlo por fila) en cada uno tranca la UI. La
+// etiqueta de años sí se actualiza al toque -es el feedback visual del slider-, el
+// recalculo pesado va debounceado via scheduleCompare() (150ms, definida mas arriba).
+(()=>{ const c=document.getElementById('cmpYrs');
+  if(!c) return;
+  c.addEventListener('input',()=>{
+    const lab=document.getElementById('cmpYrsVal'), y=cmpYears();
+    if(lab) lab.textContent=y+(y===1?' año':' años');
+    scheduleCompare();
+  });
+})();
+renderScenarios();
+Object.entries(HOLDINGS_ID2KEY).forEach(([id,b])=>{const el=document.getElementById(id);el.value=holdings[b]||0;el.addEventListener('input',e=>{holdings[b]=+e.target.value||0;const s=Object.values(state.weights).reduce((a,c)=>a+c,0);renderRebalance(state.weights,s);});});
+if(!bootState()){ buildGoals(); buildAlloc(); render(); }
+// El horizonte de la tabla arranca en el projYrs de la pantalla, PERO recien aca: si
+// corriera antes de bootState() se pisaria con el projYrs=20 estatico del HTML en vez
+// del valor restaurado desde cnf_state_v1. Despues va por su cuenta (no se persiste).
+(()=>{ const c=document.getElementById('cmpYrs'), p=document.getElementById('projYrs');
+  if(c&&p) c.value=p.value;
+})();
+document.addEventListener('input', e=>{ if(e.target && e.target.id==='lockPass') return; scheduleSave(); });
+document.addEventListener('change', e=>{ if(e.target && e.target.id==='lockPass') return; scheduleSave(); });
+loadPrices();
+</script>
+
+<!-- Registro del service worker + botón "Instalar" — mejora #5, tarea 4 (PWA offline).
+     Separado del bloque grande de arriba a propósito: usa navigator/window de verdad
+     (no stubs), y el harness de tests (test/*.js) corre el bloque grande en un
+     sandbox de Node sin esos globals. -->
+<script>
+(function registrarServiceWorker(){
+  if(!('serviceWorker' in navigator)) return;
+  var esLocalhost=location.hostname==='localhost'||location.hostname==='127.0.0.1';
+  // Ruta relativa ('sw.js', no '/sw.js'): el sitio vive en un subdirectorio de GitHub
+  // Pages, una ruta absoluta apuntaria a la raiz del dominio y no registraria nada.
+  // Solo bajo HTTPS o localhost: en file:// (desarrollo local abriendo el html directo)
+  // no hay que registrar nada, o se rompe el flujo de laburo local.
+  if(location.protocol!=='https:' && !esLocalhost) return;
+  navigator.serviceWorker.register('sw.js').catch(function(){});
+})();
+
+(function botonInstalar(){
+  var btn=document.getElementById('installBtn');
+  if(!btn) return;
+  function yaInstalada(){
+    return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone===true;
+  }
+  if(yaInstalada()) return; // ya esta instalada: no mostrar nada
+  var deferredPrompt=null;
+  // Si el navegador nunca emite este evento (Safari/iOS no lo hace), el botón se queda
+  // oculto para siempre — no dejamos un botón muerto en pantalla.
+  window.addEventListener('beforeinstallprompt', function(e){
+    e.preventDefault();
+    deferredPrompt=e;
+    btn.style.display='';
+  });
+  btn.addEventListener('click', function(){
+    if(!deferredPrompt) return;
+    btn.style.display='none';
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.finally(function(){ deferredPrompt=null; });
+  });
+  window.addEventListener('appinstalled', function(){ btn.style.display='none'; deferredPrompt=null; });
+})();
 </script>
 </body>
 </html>
