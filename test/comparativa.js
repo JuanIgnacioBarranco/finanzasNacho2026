@@ -336,6 +336,60 @@ section('columnas: p10 <= p50 <= p90 y prob entre 0 y 100', () => {
 });
 
 // ---------------------------------------------------------------------------
+// 5b. Defensa en profundidad de computeFlow() en si misma (independiente del
+//     filtro de readScenarios()): llamadas DIRECTAS con un snap incompleto, sin
+//     pasar por readScenarios(). Si el dia de mañana algun otro consumidor le pasa
+//     un snap crudo a computeFlow()/metricsFor() sin sanear antes, esto confirma
+//     que el throw original (`inputs.ingresoNum` con inputs undefined) ya no puede
+//     pasar aunque el saneo en la fuente no haya corrido.
+// ---------------------------------------------------------------------------
+section('computeFlow(): un snap sin inputs/weights no tira (defensa en profundidad, sin pasar por readScenarios())', () => {
+  const { sandbox } = loadSandbox();
+  [{ v: 1 }, {}, { v: 1, inputs: 'no soy un objeto' }, { v: 1, weights: null }].forEach(snap => {
+    let threw = false;
+    let f = null;
+    try { f = sandbox.computeFlow(snap); } catch (e) { threw = true; }
+    check(!threw, 'computeFlow(' + JSON.stringify(snap) + ') no debe lanzar');
+    check(f && typeof f === 'object', 'computeFlow(' + JSON.stringify(snap) + ') debe devolver un objeto de todas formas');
+  });
+});
+
+section('metricsFor(): un snap sin inputs/weights no tira al llamarlo directo (sin pasar por readScenarios())', () => {
+  const { sandbox } = loadSandbox();
+  let threw = false;
+  let m = null;
+  try { m = sandbox.metricsFor({ v: 1 }, 20); } catch (e) { threw = true; }
+  check(!threw, 'metricsFor({v:1}, 20) no debe lanzar aunque el snap no tenga inputs/weights');
+  check(m && typeof m === 'object', 'metricsFor({v:1}, 20) debe devolver un objeto de metricas de todas formas');
+});
+
+section('renderCompare(): tercera red -- si metricsFor() fallara por cualquier motivo no previsto, esa fila sola se salta sin tirar abajo toda la tabla', () => {
+  const { sandbox, documentStub } = loadSandbox(seedScenarios());
+  setHorizon(documentStub, 20);
+  // metricsFor es una `function` de top-level, igual que mcStats (ver spyMcStats
+  // arriba): vive como propiedad del global del contexto, asi que reemplazarla ahi
+  // hace que renderCompare() -que la resuelve por la cadena de scopes en cada
+  // llamada- use la version reemplazada.
+  const real = sandbox.metricsFor;
+  sandbox.metricsFor = function (snap, years) {
+    if (snap && snap.__forceFail) throw new Error('fallo forzado para el test');
+    return real(snap, years);
+  };
+  const list = sandbox.readScenarios();
+  list[0].snap.__forceFail = true; // "Corto" falla a proposito; "Largo" queda intacto
+  sandbox.writeScenarios(list);
+
+  let threw = false;
+  try { sandbox.renderCompare(); } catch (e) { threw = true; }
+  check(!threw, 'renderCompare() no debe lanzar aunque metricsFor() falle para una fila puntual');
+
+  const out = documentStub.getElementById('cmpTable').innerHTML;
+  check(/class="now"/.test(out), 'la fila "Actual" debe seguir apareciendo pese al fallo de otra fila');
+  check(/no se pudo calcular/.test(out), 'la fila que fallo debe mostrar un aviso en vez de romper toda la tabla');
+  check(/Largo/.test(out), 'la fila "Largo" (que no fallo) debe seguir calculandose normalmente pese al fallo de su vecina');
+});
+
+// ---------------------------------------------------------------------------
 // 6. Escapado en la tabla.
 // ---------------------------------------------------------------------------
 section('escapado: un nombre con HTML se renderiza escapado tambien en la tabla', () => {
@@ -439,7 +493,72 @@ async function listenerAsyncChecks() {
 }
 
 // ---------------------------------------------------------------------------
-listenerAsyncChecks().then(() => {
+// 10. Defensa en profundidad (bug de verificacion independiente sobre bd5eaca): el
+//     saneo de bd5eaca solo validaba que s.snap FUERA un objeto, no que tuviera la
+//     forma que computeFlow() necesita. Un escenario como
+//     {"name":"buena","ts":1,"snap":{"v":1}} pasaba ese filtro (snap es un objeto)
+//     y despues metricsFor(s.snap) -> computeFlow(snap) hacia `inputs.ingresoNum`
+//     con inputs undefined -> TypeError.
+//
+//     Critico: ese throw pasa DENTRO del setTimeout de scheduleCompare(), no en una
+//     llamada directa a renderCompare() -por eso estos checks disparan el camino
+//     real (scheduleCompare()/render(), nunca renderCompare() a mano) y esperan el
+//     debounce con wait(), igual que la seccion 9 de arriba. Si solo llamaramos
+//     renderCompare() sincronicamente, el try/catch del harness (section/try-catch
+//     de arriba) taparia el throw y no reproduciriamos las condiciones reales: en
+//     produccion ese throw ocurre suelto en el event loop, sin ningun try/catch
+//     alrededor, y ahi es donde de verdad mata el tablero en silencio.
+// ---------------------------------------------------------------------------
+async function malformedSnapAsyncChecks() {
+  try {
+    const store = {
+      cnf_scenarios_v1: JSON.stringify([
+        null,
+        {},
+        { name: 'sin snap' },
+        // el caso exacto reportado: snap es un objeto (pasa el filtro viejo de
+        // bd5eaca) pero no tiene inputs ni weights.
+        { name: 'buena', ts: 1, snap: { v: 1 } },
+        // inputs presente pero del tipo equivocado (no objeto).
+        { name: 'inputs no objeto', ts: 1, snap: { v: 1, inputs: 'no soy un objeto', weights: { liq: 25, idx: 25, btc: 25, tem: 25 } } },
+        // weights ausente directamente.
+        { name: 'sin weights', ts: 1, snap: { v: 1, inputs: snapCorto().inputs } },
+        // un escenario sano de verdad, para confirmar que sigue funcionando
+        // apesar de sus vecinos rotos en el mismo array.
+        { name: 'ok', ts: 1, snap: snapCorto() },
+      ]),
+    };
+    const { sandbox, documentStub } = loadSandbox(store);
+    setHorizon(documentStub, 20);
+
+    let caught = null;
+    const onUncaught = (err) => { caught = err; };
+    process.on('uncaughtException', onUncaught);
+
+    // camino real: scheduleCompare() arma el setTimeout de 150ms, exactamente lo
+    // que dispara render()/renderScenarios() en la app de verdad. No llamamos
+    // renderCompare() directo.
+    sandbox.scheduleCompare();
+    await wait(250); // > 150ms del debounce
+
+    process.removeListener('uncaughtException', onUncaught);
+
+    check(caught === null,
+      'un escenario con snap incompleto (sin inputs/weights, o con inputs de tipo invalido) no debe tirar una excepcion no capturada dentro del timer de scheduleCompare(); tiro: ' + (caught && caught.stack));
+
+    const out = documentStub.getElementById('cmpTable').innerHTML;
+    check(/class="now"/.test(out), 'pese a los escenarios malformados, la tabla debe seguir mostrando la fila "Actual"');
+    check(out.includes('ok'), 'el unico escenario sano ("ok") debe seguir apareciendo en la tabla pese a sus vecinos rotos');
+    console.log('OK   defensa en profundidad: snaps incompletos no rompen el timer real de scheduleCompare()');
+  } catch (e) {
+    failures++;
+    console.log('FAIL defensa en profundidad: snaps incompletos no rompen el timer real de scheduleCompare()');
+    console.log('     ' + (e && e.stack ? e.stack.split('\n').slice(0, 6).join('\n     ') : e));
+  }
+}
+
+// ---------------------------------------------------------------------------
+listenerAsyncChecks().then(malformedSnapAsyncChecks).then(() => {
   console.log('');
   console.log(checks + ' aserciones corridas.');
   if (failures) {

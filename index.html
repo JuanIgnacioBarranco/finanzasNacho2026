@@ -883,7 +883,17 @@ function readDOM(){
 // existentes (portfolioVol). Esto es lo que las tareas 2-4 necesitan para calcular
 // un escenario sin renderizarlo.
 function computeFlow(snap){
-  const {inputs, weights}=snap;
+  // Defensa en profundidad: readScenarios() ya sanea en la fuente (ver mas abajo),
+  // pero computeFlow no puede depender de ser SIEMPRE llamado con algo que paso por
+  // ahi -snapshot() en vivo siempre trae inputs/weights bien formados, pero un snap
+  // crudo (localStorage editado a mano, un consumidor futuro que se olvide de sanear)
+  // no tiene por que. Sin esto, `inputs.ingresoNum` con inputs undefined tira un
+  // TypeError; si eso pasa dentro del timer de scheduleCompare() nadie lo ve y el
+  // tablero queda muerto en silencio. Los defaults son objetos vacios (no valores
+  // inventados): computeFlow ya tolera claves faltantes (dan NaN, no explotan), lo
+  // unico que no tolera es que inputs/weights mismos no sean objetos.
+  const inputs=(snap && typeof snap.inputs==='object' && snap.inputs) || {};
+  const weights=(snap && typeof snap.weights==='object' && snap.weights) || {};
   const ingreso=inputs.ingresoNum, gastos=inputs.gAlq+inputs.gCom+inputs.gImp, cuotas=inputs.cuotas;
   const exced=ingreso-gastos-cuotas, pct=inputs.pctInv;
   const inv=Math.max(0,Math.round(exced*pct/100));
@@ -1064,15 +1074,43 @@ function bootState(){
 // readScenarios() es la unica lectura, tolerante a JSON corrupto o a que la clave no
 // sea un array: la tarea 3b (tabla comparativa) deberia consumir escenarios via esta
 // misma funcion en vez de tocar localStorage directo.
+//
+// scenarioUsable: el saneo de bd5eaca (s.snap "es un objeto") no alcanza -un objeto
+// como {v:1} pasa esa validacion y despues revienta computeFlow() (inputs.ingresoNum
+// con inputs undefined), pero recien adentro del timer de scheduleCompare(), asi que
+// el throw queda invisible y deja la tabla comparativa rota. Esto valida la forma
+// MINIMA que computeFlow() necesita para no tirar y para no devolver una fila de puro
+// NaN: inputs con los 15 campos numericos de INPUT_IDS (la misma lista que arma
+// readDOM()) y weights con las 4 claves numericas de la cartera.
+//
+// DESCARTAR, no normalizar: a diferencia de goals en restore() (donde falta un campo
+// y con rellenar name/usd/years por default sigue siendo una "meta" con sentido),
+// ac los datos que faltarian son ingreso/gastos/cuotas/pesos de cartera reales.
+// Inventarlos en 0 armaria una fila de comparacion con numeros que el usuario nunca
+// guardo, mostrada como si fuera lo que efectivamente guardo -peor que no mostrarla.
+// Mismo criterio que el filtro ya usa para null/{}/sin snap, y con el mismo efecto:
+// esto NO reescribe localStorage (no se llama writeScenarios() aca), asi que el
+// crudo persiste tal cual hasta el proximo saveScenario()/deleteScenario() -no se
+// borra nada del usuario en este paso, solo se deja de usar lo que no se puede
+// calcular.
+function scenarioUsable(snap){
+  if(!snap || typeof snap!=='object') return false;
+  if(!snap.inputs || typeof snap.inputs!=='object') return false;
+  if(!INPUT_IDS.every(id=>typeof snap.inputs[id]==='number' && Number.isFinite(snap.inputs[id]))) return false;
+  if(!snap.weights || typeof snap.weights!=='object') return false;
+  if(!['liq','idx','btc','tem'].every(k=>typeof snap.weights[k]==='number' && Number.isFinite(snap.weights[k]))) return false;
+  return true;
+}
 function readScenarios(){
   try{
     const arr=JSON.parse(localStorage.getItem('cnf_scenarios_v1')||'[]');
     if(!Array.isArray(arr)) return [];
     // saneamos ACA, no en cada consumidor: un elemento malformado (null, {}, un
-    // objeto sin snap) no puede tirar abajo renderScenarios() en el arranque
-    // sincrono -eso mata TODO el tablero, no solo Escenarios- ni ningun otro
-    // consumidor futuro. Mismo criterio que restore() usa para goals.
-    return arr.filter(s=>s && typeof s==='object' && s.snap && typeof s.snap==='object');
+    // objeto sin snap, o un snap sin la forma minima de scenarioUsable) no puede
+    // tirar abajo renderScenarios() en el arranque sincrono -eso mata TODO el
+    // tablero, no solo Escenarios- ni ningun otro consumidor futuro (la tabla
+    // comparativa, tarea 3b). Mismo criterio que restore() usa para goals.
+    return arr.filter(s=>s && typeof s==='object' && scenarioUsable(s.snap));
   }catch(e){ return []; }
 }
 function writeScenarios(list){ try{ localStorage.setItem('cnf_scenarios_v1', JSON.stringify(list)); }catch(e){} }
@@ -1175,7 +1213,20 @@ function renderCompare(){
   if(lab) lab.textContent=y+(y===1?' año':' años');
   let rows=`<tr><th>Escenario</th><th>Excedente/mes</th><th>Aporte/mes</th><th>Mediana a ${y}a</th><th>Rango p10–p90</th><th>Prob. meta</th></tr>`;
   rows+=cmpRow('Actual',metricsFor(snapshot(),y),'now');
-  readScenarios().forEach(s=>{ if(s&&s.snap) rows+=cmpRow(s.name||'(sin nombre)',metricsFor(s.snap,y),''); });
+  readScenarios().forEach(s=>{
+    if(!s||!s.snap) return;
+    // Defensa en profundidad: readScenarios() ya filtra snaps sin la forma minima
+    // (scenarioUsable), pero este try/catch es la ULTIMA red, no la unica. Si
+    // computeFlow/mcStats fallaran por cualquier motivo no previsto hoy, esto corre
+    // adentro del timer de scheduleCompare() -una excepcion ahi no la ve nadie y
+    // tira abajo TODA la tabla (incluida la fila "Actual") en silencio. Mejor perder
+    // una sola fila con un aviso visible que dejar el tablero muerto sin explicacion.
+    try{
+      rows+=cmpRow(s.name||'(sin nombre)',metricsFor(s.snap,y),'');
+    }catch(e){
+      rows+=`<tr><td colspan="6" class="mini" style="color:var(--faint)">${esc(s.name||'(sin nombre)')}: no se pudo calcular</td></tr>`;
+    }
+  });
   t.innerHTML=rows;
 }
 let _cmpTimer=null;

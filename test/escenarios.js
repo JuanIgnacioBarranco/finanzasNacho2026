@@ -425,6 +425,74 @@ section('arranque completo: cnf_scenarios_v1 con elementos malformados no tira a
 });
 
 // ---------------------------------------------------------------------------
+// 6c. Bug de verificacion independiente sobre bd5eaca: el filtro de 6b solo
+//     validaba "s.snap es un objeto", no que tuviera la forma que computeFlow()
+//     necesita. Un escenario como {"name":"buena","ts":1,"snap":{"v":1}} pasaba
+//     ese filtro viejo (snap ES un objeto) y despues metricsFor(s.snap) ->
+//     computeFlow(snap) hacia `inputs.ingresoNum` con inputs undefined -> TypeError,
+//     pero recien adentro del timer de scheduleCompare() (ver test/comparativa.js
+//     para la reproduccion async por el camino real). Esta seccion cubre el punto
+//     de saneo en la fuente: readScenarios() ahora tiene que filtrar tambien estos
+//     casos, no solo null/{}/sin snap.
+// ---------------------------------------------------------------------------
+section('readScenarios(): filtra snaps que SON objeto pero sin la forma minima de computeFlow (sin inputs/weights, o con inputs de tipo invalido)', () => {
+  const { sandbox } = loadSandbox({ cnf_scenarios_v1: JSON.stringify([
+    { name: 'exacto del bug: snap={v:1}', ts: 1, snap: { v: 1 } },
+    { name: 'inputs no es objeto', ts: 1, snap: { v: 1, inputs: 'no soy un objeto', weights: { liq: 25, idx: 25, btc: 25, tem: 25 } } },
+    { name: 'weights ausente', ts: 1, snap: { v: 1, inputs: snapA().inputs } },
+    { name: 'weights con claves incompletas', ts: 1, snap: { v: 1, inputs: snapA().inputs, weights: { liq: 5, idx: 35 } } },
+    { name: 'inputs con un campo faltante (le falta hTem)', ts: 1, snap: { v: 1, inputs: (() => { const i = Object.assign({}, snapA().inputs); delete i.hTem; return i; })(), weights: snapA().weights } },
+    { name: 'ok', ts: 1, snap: snapA() },
+  ]) });
+  const list = sandbox.readScenarios();
+  check(Array.isArray(list) && list.length === 1, 'readScenarios() debe filtrar los 5 snaps incompletos y conservar solo el valido, quedaron ' + list.length);
+  check(list[0].name === 'ok', 'el unico elemento conservado debe ser el valido ("ok"), fue "' + (list[0] && list[0].name) + '"');
+});
+
+section('arranque completo: cnf_scenarios_v1 con el snap EXACTO del bug reportado ({"v":1}, sin inputs/weights) no tira abajo el tablero', () => {
+  const raw = JSON.stringify([{ name: 'buena', ts: 1, snap: { v: 1 } }]);
+  let threw = false;
+  let result = null;
+  try { result = loadSandbox({ cnf_scenarios_v1: raw }); } catch (e) { threw = true; }
+  check(!threw, 'el arranque completo con el snap exacto del bug reportado no debe lanzar');
+  if (!result) return;
+  const { sandbox } = result;
+  check(sandbox.readScenarios().length === 0, 'el escenario "buena" (snap incompleto) no debe aparecer en readScenarios()');
+  sandbox.restore(snapB());
+  check(normalize(sandbox.snapshot()).perfil === 'conservador', 'el tablero debe seguir siendo operable despues del arranque');
+});
+
+// ---------------------------------------------------------------------------
+// 6d. restore()/applyScenario() con un snap incompleto: a diferencia de
+//     computeFlow(), restore() ya chequea cada campo por separado antes de usarlo
+//     (if(s.weights && typeof s.weights==='object'), if(s.inputs && ...), etc.), asi
+//     que un snap tipo {v:1} deberia dejarlo simplemente sin tocar esos campos, no
+//     tirar. Esta seccion lo confirma explicitamente en vez de asumirlo.
+// ---------------------------------------------------------------------------
+section('restore(): un snap incompleto ({v:1}, sin inputs/weights/goals) no tira y deja el resto del estado intacto', () => {
+  const { sandbox } = loadSandbox({});
+  sandbox.restore(snapA());
+  const before = normalize(sandbox.snapshot());
+
+  let threw = false;
+  try { sandbox.restore({ v: 1 }); } catch (e) { threw = true; }
+  check(!threw, 'restore({v:1}) no debe lanzar');
+
+  const after = normalize(sandbox.snapshot());
+  assert.deepStrictEqual(after, before, 'restore() con un snap sin inputs/weights/goals no debe alterar el estado previo (cada campo se chequea por separado antes de aplicarse)');
+});
+
+section('applyScenario(): cargar un indice cuyo snap guardado es incompleto no tira (y, tras el fix de readScenarios(), ni siquiera queda cargable)', () => {
+  const { sandbox } = loadSandbox({ cnf_scenarios_v1: JSON.stringify([{ name: 'buena', ts: 1, snap: { v: 1 } }]) });
+  let threw = false;
+  try { sandbox.applyScenario(0); } catch (e) { threw = true; }
+  check(!threw, 'applyScenario(0) sobre un escenario con snap incompleto no debe lanzar');
+  // tras el fix de readScenarios(), este escenario ni siquiera aparece en la lista
+  // (indice 0 esta vacio), asi que applyScenario(0) es un no-op seguro.
+  check(sandbox.readScenarios().length === 0, 'sanity: el escenario incompleto no debe estar en readScenarios() tras el fix');
+});
+
+// ---------------------------------------------------------------------------
 // Extra: nombre vacio no guarda (y no explota si se intenta cargar/borrar un
 // indice que no existe).
 // ---------------------------------------------------------------------------
