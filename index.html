@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow, noarchive">
 <title>Acceso privado</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#f6b23a">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
@@ -289,6 +291,7 @@
         <div class="bt">Cartera 2026</div>
         <div class="bs">Asignación personal · CEDEARs · IOL</div>
       </div>
+      <button class="btn" id="installBtn" style="margin-left:auto;display:none">📲 Instalar</button>
     </div>
     <p class="lead">Mové los deslizadores para repartir tu cartera. Elegí perfil y plazo para cargar una asignación sugerida; abajo, tu flujo mensual real (ingreso − gastos − cuotas) define cuántos pesos van a cada activo.</p>
     <div class="chips">
@@ -622,8 +625,24 @@ const TMAP={
   tem:[{t:'GLD',w:.40,name:'Oro'},{t:'SMH',w:.30,name:'Semis/IA'},{t:'CIBR',w:.15,name:'Ciberseg.'},{t:'URA',w:.15,name:'Uranio'}],
 };
 let PRICES={mep:null,btcUsd:null,cedears:null,ts:null};
-try{const _c=JSON.parse(localStorage.getItem('cnf_prices')||'null'); if(_c)PRICES=_c;}catch(e){}
+// Retrocompat: un cnf_prices guardado por una version vieja (sin el campo `ts`) se
+// mezcla con los defaults en vez de reemplazarlos entero, asi el campo `ts` siempre
+// existe (null si no se sabe) y nada aguas abajo se rompe por asumir que esta.
+try{const _c=JSON.parse(localStorage.getItem('cnf_prices')||'null'); if(_c)PRICES=Object.assign({},PRICES,_c);}catch(e){}
+function pricesSnapshot(){return PRICES;} // testeable: expone el PRICES vivo (`ts` siempre presente tras el merge retrocompat)
 function bucketColor(id){return {liq:'--liq',idx:'--idx',btc:'--btc',tem:'--tem'}[id];}
+// pxTsLabel: aviso de que tan viejos son los precios mostrados en #pxStrip. Sin
+// conexion mostramos la FECHA completa (no solo la hora) — si dijeramos nomas
+// "actualizado 14:32" con la app abierta offline un dia despues, parece que son de
+// recien. Con conexion se mantiene el aviso corto de siempre. Tolera un PRICES sin
+// `ts` (dato viejo) sin romper: cae al mensaje neutro.
+function pxTsLabel(p){
+  if(!p||!p.ts) return 'sin datos aún';
+  const d=new Date(p.ts);
+  if(isNaN(d.getTime())) return 'sin datos aún';
+  const offline=(typeof navigator!=='undefined' && navigator.onLine===false);
+  return offline ? ('precios del '+fmtScnDate(p.ts)) : ('actualizado '+d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}));
+}
 
 async function loadPrices(){
   const btn=document.getElementById('pxBtn'); if(btn){btn.disabled=true;btn.textContent='Actualizando…';}
@@ -654,7 +673,7 @@ function renderOrders(inv,w,sum){
   document.getElementById('pxStrip').innerHTML=
     (mep?`<span>Dólar MEP <b>${fmt.format(mep)}</b></span>`:'')+
     (btcU?`<span>BTC <b>US$${Math.round(btcU).toLocaleString('es-AR')}</b></span>`:'')+
-    (PRICES.ts?`<span class="mut">actualizado ${new Date(PRICES.ts).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}</span>`:`<span class="mut">sin datos aún</span>`);
+    `<span class="mut">${pxTsLabel(PRICES)}</span>`;
   const liqP=inv*(w.liq/sum);
   const items=[];
   ['idx','btc','tem'].forEach(bid=>{const bp=inv*(w[bid]/sum);
@@ -1260,6 +1279,47 @@ if(!bootState()){ buildGoals(); buildAlloc(); render(); }
 document.addEventListener('input', e=>{ if(e.target && e.target.id==='lockPass') return; scheduleSave(); });
 document.addEventListener('change', e=>{ if(e.target && e.target.id==='lockPass') return; scheduleSave(); });
 loadPrices();
+</script>
+
+<!-- Registro del service worker + botón "Instalar" — mejora #5, tarea 4 (PWA offline).
+     Separado del bloque grande de arriba a propósito: usa navigator/window de verdad
+     (no stubs), y el harness de tests (test/*.js) corre el bloque grande en un
+     sandbox de Node sin esos globals. -->
+<script>
+(function registrarServiceWorker(){
+  if(!('serviceWorker' in navigator)) return;
+  var esLocalhost=location.hostname==='localhost'||location.hostname==='127.0.0.1';
+  // Ruta relativa ('sw.js', no '/sw.js'): el sitio vive en un subdirectorio de GitHub
+  // Pages, una ruta absoluta apuntaria a la raiz del dominio y no registraria nada.
+  // Solo bajo HTTPS o localhost: en file:// (desarrollo local abriendo el html directo)
+  // no hay que registrar nada, o se rompe el flujo de laburo local.
+  if(location.protocol!=='https:' && !esLocalhost) return;
+  navigator.serviceWorker.register('sw.js').catch(function(){});
+})();
+
+(function botonInstalar(){
+  var btn=document.getElementById('installBtn');
+  if(!btn) return;
+  function yaInstalada(){
+    return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone===true;
+  }
+  if(yaInstalada()) return; // ya esta instalada: no mostrar nada
+  var deferredPrompt=null;
+  // Si el navegador nunca emite este evento (Safari/iOS no lo hace), el botón se queda
+  // oculto para siempre — no dejamos un botón muerto en pantalla.
+  window.addEventListener('beforeinstallprompt', function(e){
+    e.preventDefault();
+    deferredPrompt=e;
+    btn.style.display='';
+  });
+  btn.addEventListener('click', function(){
+    if(!deferredPrompt) return;
+    btn.style.display='none';
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.finally(function(){ deferredPrompt=null; });
+  });
+  window.addEventListener('appinstalled', function(){ btn.style.display='none'; deferredPrompt=null; });
+})();
 </script>
 </body>
 </html>
