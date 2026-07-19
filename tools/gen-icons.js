@@ -36,12 +36,29 @@ function buildPixels(size, radiusFactor) {
   const rowBytes = size * 3; // RGB, sin canal alpha
   const raw = Buffer.alloc((rowBytes + 1) * size);
   let pos = 0;
+  // Tres barras ascendentes caladas en oscuro sobre el disco dorado: un circulo pelado
+  // no se distingue de nada en la pantalla de inicio. Todo en proporciones de `size`
+  // para que 192 y 512 salgan identicos salvo por la escala.
+  const bw = size * 0.085, gap = size * 0.055;
+  const base = cy + size * 0.165;                    // linea de piso de las barras
+  const anchoTotal = bw * 3 + gap * 2;
+  const x0 = cx - anchoTotal / 2;
+  const alturas = [size * 0.135, size * 0.215, size * 0.30];
+  const enBarra = (x, y) => {
+    for (let i = 0; i < 3; i++) {
+      const bx = x0 + i * (bw + gap);
+      if (x >= bx && x < bx + bw && y <= base && y >= base - alturas[i]) return true;
+    }
+    return false;
+  };
+
   for (let y = 0; y < size; y++) {
     raw[pos++] = 0; // byte de filtro por fila: 0 = None
     for (let x = 0; x < size; x++) {
-      const dx = x - cx + 0.5, dy = y - cy + 0.5;
+      const px = x + 0.5, py = y + 0.5;
+      const dx = px - cx, dy = py - cy;
       const dentro = Math.sqrt(dx * dx + dy * dy) <= r;
-      const col = dentro ? GOLD : BG;
+      const col = (dentro && !enBarra(px, py)) ? GOLD : BG;
       raw[pos++] = col[0]; raw[pos++] = col[1]; raw[pos++] = col[2];
     }
   }
