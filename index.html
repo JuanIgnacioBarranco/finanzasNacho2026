@@ -7,6 +7,13 @@
 <title>Acceso privado</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#f6b23a">
+<!-- iOS ignora el manifest para "Añadir a pantalla de inicio": sin esto usa una
+     captura de pantalla en vez del icono. Rutas relativas (no "/icons/..."): el sitio
+     se sirve desde el subdirectorio /finanzasNacho2026/ de GitHub Pages. -->
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Finanzas">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
@@ -655,7 +662,12 @@ async function loadPrices(){
   if(o.mep!=null)PRICES.mep=o.mep;
   if(o.btcUsd!=null)PRICES.btcUsd=o.btcUsd;
   if(o.cedears)PRICES.cedears=o.cedears;
-  PRICES.ts=new Date().toISOString();
+  // Promise.allSettled nunca rechaza: si arrancamos offline las 3 fetch fallan y `o`
+  // queda vacio, pero sin este guard igual pisariamos PRICES.ts con "ahora" y
+  // persistiriamos eso en localStorage — el timestamp REAL de la ultima vez que hubo
+  // datos de verdad se perderia sin vuelta atras, y pxTsLabel() mostraria "precios del
+  // <hoy>" con precios de hace dias. Solo actualizamos ts si trajimos algo nuevo.
+  if(o.mep!=null||o.btcUsd!=null||o.cedears)PRICES.ts=new Date().toISOString();
   try{localStorage.setItem('cnf_prices',JSON.stringify(PRICES));}catch(e){}
   if(btn){btn.disabled=false;btn.textContent='↻ Actualizar precios';}
   render();
@@ -1145,8 +1157,12 @@ function saveScenario(rawName){
   const list=readScenarios();
   const i=list.findIndex(s=>s && s.name===name);
   if(i>=0 && !confirm(`Ya existe un escenario "${name}". ¿Lo sobrescribís?`)) return;
-  // copia profunda: nunca guardar el mismo objeto weights/goals que ya vive (o vivio)
-  // en otro escenario, si no mover un slider despues los mutaria a todos a la vez.
+  // deepCopy(): defensa en profundidad barata, no la unica barrera contra aliasing.
+  // snapshot() (via readDOM()) ya arma objetos frescos en cada llamada (spread en
+  // weights/inputs, .map() en goals) y ademas todo ronda por JSON.stringify/parse
+  // contra localStorage antes de volver a leerse, asi que dos escenarios compartiendo
+  // referencia ya es estructuralmente imposible hoy. Esto es la ultima red, por si el
+  // dia de mañana algo deja de clonar en el camino.
   const entry={name, ts:Date.now(), snap:deepCopy(snapshot())};
   if(i>=0) list[i]=entry; else list.push(entry);
   writeScenarios(list);
@@ -1207,11 +1223,26 @@ function renderScenarios(){
 // El projYrs propio se muestra igual, como dato informativo.
 const _cmpMemo=new Map(), CMP_MEMO_MAX=60;
 function cmpYears(){ const el=document.getElementById('cmpYrs'); return Math.max(1,Math.round(el?+el.value||20:20)); }
-// La clave incluye el horizonte y el contenido del snapshot: cambiar cualquiera de los
-// dos recalcula, y un escenario intacto no vuelve a correr los 500 paths del Monte Carlo
-// (además de evitar que los números bailen en pantalla en cada re-render).
+// flowInputsKey: la porcion MINIMA del snapshot que computeFlow() realmente lee (repasá
+// su cuerpo mas arriba): el objeto weights entero + estos 9 campos de inputs. Excluye
+// a propósito hLiq/hIdx/hBtc/hTem (cartera real: los usa renderRebalance, no
+// computeFlow) y goals (los usa computeGoals). Si la clave del memo usara el snapshot
+// ENTERO, tipear en los campos de cartera real cambiaria la clave sin que el resultado
+// de computeFlow cambiara un bit -> se disparaban los 500 paths de Monte Carlo de nuevo
+// y los p50/p10/p90 de la fila "Actual" bailaban en pantalla sin causa visible.
+function flowInputsKey(snap){
+  const i=(snap && typeof snap.inputs==='object' && snap.inputs) || {};
+  const w=(snap && typeof snap.weights==='object' && snap.weights) || {};
+  return JSON.stringify({w,
+    ingresoNum:i.ingresoNum, gAlq:i.gAlq, gCom:i.gCom, gImp:i.gImp, cuotas:i.cuotas,
+    pctInv:i.pctInv, projYrs:i.projYrs, projGoal:i.projGoal, projP0:i.projP0});
+}
+// La clave incluye el horizonte y lo que computeFlow() efectivamente consume (ver
+// flowInputsKey arriba): cambiar cualquiera de los dos recalcula, y un escenario
+// intacto no vuelve a correr los 500 paths del Monte Carlo (además de evitar que los
+// números bailen en pantalla en cada re-render).
 function metricsFor(snap,years){
-  const key=years+'|'+JSON.stringify(snap);
+  const key=years+'|'+flowInputsKey(snap);
   if(_cmpMemo.has(key)) return _cmpMemo.get(key);
   const f=computeFlow(snap);
   const st=mcStats({C:f.inv,P0:f.P0,muA:f.ret/100,volA:f.volA,years,goal:f.goal});

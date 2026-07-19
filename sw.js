@@ -57,8 +57,14 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(req)
         .then((res) => {
-          const copia = res.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(req, copia));
+          // Solo cacheamos respuestas ok: fetch() resuelve normalmente (no rechaza) con
+          // 404/500, y GitHub Pages tira 404 transitorios durante sus propios deploys. Sin
+          // este chequeo, un 404 de HTML quedaria como fallback offline y la app offline
+          // mostraria la pagina de error de GitHub en vez del tablero.
+          if (res.ok) {
+            const copia = res.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(req, copia));
+          }
           return res;
         })
         .catch(() => caches.match(req).then((res) => res || caches.match('./index.html')))
@@ -72,8 +78,14 @@ self.addEventListener('fetch', (event) => {
     // cache-first: iconos, manifest y las fuentes no cambian seguido.
     event.respondWith(
       caches.match(req).then((cached) => cached || fetch(req).then((res) => {
-        const copia = res.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(req, copia));
+        // Mismo chequeo que en la rama network-first de arriba: en cache-first un 404
+        // cacheado queda PARA SIEMPRE (esta rama nunca revalida), asi que un 404
+        // transitorio de GitHub Pages pisaria el icono/manifest/fuente real sin que
+        // nada lo vuelva a corregir salvo bumpear CACHE_NAME.
+        if (res.ok) {
+          const copia = res.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, copia));
+        }
         return res;
       }))
     );

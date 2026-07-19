@@ -217,10 +217,15 @@ section('mutacion: sacando el guard de protocolo, el mismo snippet SI registrari
 //    precios y se confirma que event.respondWith() NUNCA se llama para esos casos
 //    (se deja pasar la request tal cual a la red, sin que el SW la intercepte).
 // ---------------------------------------------------------------------------
-function correrSw(source) {
+function correrSw(source, opts) {
+  opts = opts || {};
   const listeners = {};
-  const fakeCache = { addAll: async () => {}, put: async () => {}, match: async () => undefined };
+  const putCalls = [];
+  // put() registra cada llamada (para los tests de res.ok, mas abajo); el resto de los
+  // tests de esta seccion no miran putCalls, asi que no les cambia nada.
+  const fakeCache = { addAll: async () => {}, put: async (req, res) => { putCalls.push({ req, res }); }, match: async () => undefined };
   const fetchCalls = [];
+  const fetchImpl = opts.fetchImpl || ((req) => { fetchCalls.push(req); return Promise.resolve({ ok: true, clone() { return this; } }); });
   const sandbox = {
     self: {
       addEventListener(type, fn) { listeners[type] = fn; },
@@ -234,13 +239,13 @@ function correrSw(source) {
       delete: async () => true,
       match: async () => undefined,
     },
-    fetch(req) { fetchCalls.push(req); return Promise.resolve({ ok: true, clone() { return this; } }); },
+    fetch: fetchImpl,
     URL,
     console,
   };
   vm.createContext(sandbox);
   vm.runInContext(source, sandbox, { filename: 'sw.js#sandbox' });
-  return { listeners, sandbox, fetchCalls };
+  return { listeners, sandbox, fetchCalls, putCalls, fakeCache };
 }
 function pedidoFetch(listeners, urlStr, extra) {
   const req = Object.assign({
@@ -293,6 +298,84 @@ section('mutacion: sacando el filtro de hosts de precios, sw.js SI terminaria ca
 });
 
 // ---------------------------------------------------------------------------
+// 5b. Hallazgo de revision (mejora-5): sw.js cacheaba respuestas no-ok. fetch()
+//     resuelve normalmente (no rechaza) con 404/500, y GitHub Pages tira 404
+//     transitorios durante sus propios deploys.
+//     - cache-first (iconos/manifest/fuentes): un 404 asi cacheado queda cacheado
+//       PARA SIEMPRE (esa rama nunca revalida; solo se limpia bumpeando CACHE_NAME).
+//     - network-first (navegacion): un 404 de HTML queda como fallback offline -> la
+//       app offline muestra la pagina de error de GitHub en vez del tablero.
+//     Chequeo behavioral: se ejercita sw.js REAL (no una reimplementacion) con un
+//     fetch que resuelve {ok:false}; el cache.put() interno no esta encadenado al
+//     valor que event.respondWith() devuelve (es "fire and forget"), asi que despues
+//     de esperar esa promesa hay que dejar pasar un macrotask (wait(0)) para que
+//     terminen de asentar los .then() sueltos antes de mirar putCalls.
+// ---------------------------------------------------------------------------
+function fetch404() { return Promise.resolve({ ok: false, status: 404, clone() { return this; } }); }
+function fetch200() { return Promise.resolve({ ok: true, status: 200, clone() { return this; } }); }
+
+async function swResOkAsyncChecks() {
+  try {
+    { // network-first (navegacion): 404 NO se cachea
+      const { listeners, putCalls } = correrSw(swSrc, { fetchImpl: fetch404 });
+      const ev = pedidoFetch(listeners, 'https://juanignaciobarranco.github.io/finanzasNacho2026/index.html', { mode: 'navigate' });
+      await ev._p;
+      await wait(0);
+      check(putCalls.length === 0, 'network-first: un 404 de la red NO debe cachearse, se cacheo ' + putCalls.length + ' vez/veces');
+    }
+    { // cache-first (icono propio): 404 NO se cachea
+      const { listeners, putCalls } = correrSw(swSrc, { fetchImpl: fetch404 });
+      const ev = pedidoFetch(listeners, 'https://juanignaciobarranco.github.io/finanzasNacho2026/icons/icon-192.png');
+      await ev._p;
+      await wait(0);
+      check(putCalls.length === 0, 'cache-first: un 404 de la red NO debe cachearse, se cacheo ' + putCalls.length + ' vez/veces');
+    }
+    { // controles positivos: con 200 SI se sigue cacheando en ambas ramas
+      const { listeners, putCalls } = correrSw(swSrc, { fetchImpl: fetch200 });
+      const evNav = pedidoFetch(listeners, 'https://juanignaciobarranco.github.io/finanzasNacho2026/index.html', { mode: 'navigate' });
+      await evNav._p;
+      await wait(0);
+      check(putCalls.length === 1, 'network-first: una respuesta 200 SI debe cachearse (control positivo), se cacheo ' + putCalls.length + ' vez/veces');
+    }
+    {
+      const { listeners, putCalls } = correrSw(swSrc, { fetchImpl: fetch200 });
+      const ev = pedidoFetch(listeners, 'https://juanignaciobarranco.github.io/finanzasNacho2026/icons/icon-192.png');
+      await ev._p;
+      await wait(0);
+      check(putCalls.length === 1, 'cache-first: una respuesta 200 SI debe cachearse (control positivo), se cacheo ' + putCalls.length + ' vez/veces');
+    }
+    console.log('OK   sw.js real: solo se cachean respuestas res.ok, en ambas ramas (network-first y cache-first)');
+  } catch (e) {
+    failures++;
+    console.log('FAIL sw.js real: res.ok debe gatear el cache.put() en ambas ramas');
+    console.log('     ' + (e && e.stack ? e.stack.split('\n').slice(0, 6).join('\n     ') : e));
+  }
+
+  try {
+    // mutacion: mismo swSrc real, con los dos guards "if (res.ok) { ... }" sacados via
+    // replace de texto (nunca se toca el archivo real del repo). Ninguno de los dos
+    // bloques tiene llaves anidadas adentro, asi que un no-greedy hasta la primera "}"
+    // alcanza para sacar el guard entero sin tocar nada mas.
+    const sinGuard = swSrc.replace(/if\s*\(res\.ok\)\s*\{([\s\S]*?)\}/g, '$1');
+    const nGuardsReales = (swSrc.match(/if\s*\(res\.ok\)/g) || []).length;
+    check(nGuardsReales === 2, 'se esperaban 2 guards "if (res.ok)" en sw.js (network-first + cache-first), se encontraron ' + nGuardsReales);
+    check(sinGuard !== swSrc, 'el replace debe haber sacado los guards (si no, el test no prueba nada)');
+
+    const { listeners, putCalls } = correrSw(sinGuard, { fetchImpl: fetch404 });
+    const ev = pedidoFetch(listeners, 'https://juanignaciobarranco.github.io/finanzasNacho2026/icons/icon-192.png');
+    await ev._p;
+    await wait(0);
+    check(putCalls.length === 1,
+      'sin el guard de res.ok, un 404 SI se cachearia igual (confirma que el guard real es necesario), se cacheo ' + putCalls.length + ' vez/veces');
+    console.log('OK   mutacion: sin el guard res.ok, sw.js SI cachearia un 404');
+  } catch (e) {
+    failures++;
+    console.log('FAIL mutacion: sin el guard res.ok, sw.js deberia cachear un 404 igual');
+    console.log('     ' + (e && e.stack ? e.stack.split('\n').slice(0, 6).join('\n     ') : e));
+  }
+}
+
+// ---------------------------------------------------------------------------
 // 6. index.html enlaza el manifest y declara theme-color.
 // ---------------------------------------------------------------------------
 function tieneManifestYTheme(htmlSrc) {
@@ -320,6 +403,38 @@ section('mutacion: tieneManifestYTheme() SI detecta la ausencia del link o del m
 });
 
 // ---------------------------------------------------------------------------
+// 6b. iconos iOS: hallazgo MINOR de revision (mejora-5). iOS ignora los iconos del
+//     manifest para "Añadir a pantalla de inicio", asi que sin apple-touch-icon usaria
+//     una captura de pantalla en vez del icono. Ruta relativa es critico: el sitio se
+//     sirve desde el subdirectorio /finanzasNacho2026/ de GitHub Pages, una ruta
+//     absoluta ("/icons/...") apuntaria a la raiz del dominio y no encontraria nada.
+// ---------------------------------------------------------------------------
+function tieneIconosIOS(htmlSrc) {
+  const linkM = htmlSrc.match(/<link[^>]+rel=["']apple-touch-icon["'][^>]*>/);
+  const capableM = htmlSrc.match(/<meta[^>]+name=["']apple-mobile-web-app-capable["'][^>]*>/);
+  if (!linkM) throw new Error('no se encontro <link rel="apple-touch-icon">');
+  if (!capableM) throw new Error('no se encontro <meta name="apple-mobile-web-app-capable">');
+  const hrefM = linkM[0].match(/href=["']([^"']+)["']/);
+  if (!hrefM) throw new Error('el <link rel="apple-touch-icon"> no tiene href');
+  if (hrefM[1].startsWith('/')) throw new Error('el href del apple-touch-icon es una ruta absoluta: ' + hrefM[1]);
+  return { linkTag: linkM[0], href: hrefM[1] };
+}
+
+section('index.html: declara apple-touch-icon (ruta relativa, apuntando a un icono real) y apple-mobile-web-app-capable', () => {
+  const { href } = tieneIconosIOS(html);
+  check(!href.startsWith('/'), 'el href del apple-touch-icon no puede ser una ruta absoluta, fue "' + href + '"');
+  check(fs.existsSync(path.join(ROOT, href)), 'el apple-touch-icon debe apuntar a un archivo que existe de verdad: ' + href);
+});
+
+section('mutacion: tieneIconosIOS() SI detecta la ausencia del link o una ruta absoluta', () => {
+  const sinLink = html.replace(/<link[^>]+rel=["']apple-touch-icon["'][^>]*>\n?/, '');
+  assert.throws(() => tieneIconosIOS(sinLink), 'sin el <link rel="apple-touch-icon"> el checker debe fallar');
+  const conRutaAbsoluta = html.replace(/(<link[^>]+rel=["']apple-touch-icon["'][^>]+href=["'])([^"']+)/, '$1/$2');
+  assert.throws(() => tieneIconosIOS(conRutaAbsoluta), 'con una ruta absoluta en el href el checker debe fallar');
+  assert.doesNotThrow(() => tieneIconosIOS(html), 'el index.html real debe seguir pasando');
+});
+
+// ---------------------------------------------------------------------------
 // 7. Aviso de precios viejos: pxTsLabel() dentro del bloque grande.
 // ---------------------------------------------------------------------------
 function makeElement(id) {
@@ -331,7 +446,24 @@ function makeElement(id) {
     querySelector() { return makeElement(id + '>nested'); }, querySelectorAll() { return []; },
   };
 }
-function loadLogicSandbox(store, extraGlobals) {
+// extraerLogicSrc: el bloque grande de <script> de index.html, cortado justo antes de
+// la invocacion final `loadPrices();` (las funciones -incluida loadPrices- quedan
+// definidas igual; lo que se corta es el arranque real que pide document/localStorage
+// de verdad). Factoreado aparte de loadLogicSandbox() para poder mutarlo con un
+// replace de texto en los tests de mutacion sin tocar el archivo real del repo.
+function extraerLogicSrc() {
+  const scriptBlocks = [];
+  const re = /<script>([\s\S]*?)<\/script>/g;
+  let m;
+  while ((m = re.exec(html))) scriptBlocks.push(m[1]);
+  const bigScript = scriptBlocks.find((s) => s.includes('function computeFlow'));
+  if (!bigScript) throw new Error('no se encontro el bloque <script> con computeFlow');
+  const cutIdx = bigScript.lastIndexOf('loadPrices();');
+  if (cutIdx === -1) throw new Error('no se encontro el marcador de corte "loadPrices();"');
+  return bigScript.slice(0, cutIdx);
+}
+
+function loadLogicSandbox(store, extraGlobals, srcOverride) {
   const elCache = new Map();
   const perfilButtons = ['conservador', 'moderado', 'arriesgado'].map((v) => ({ dataset: { v }, classList: { add() {}, remove() {}, contains: () => v === 'moderado' } }));
   const plazoButtons = ['corto', 'mediano', 'largo'].map((v) => ({ dataset: { v }, classList: { add() {}, remove() {}, contains: () => v === 'largo' } }));
@@ -359,17 +491,8 @@ function loadLogicSandbox(store, extraGlobals) {
     setTimeout, clearTimeout,
     confirm() { return true; },
   }, extraGlobals || {});
-  const scriptBlocks = [];
-  const re = /<script>([\s\S]*?)<\/script>/g;
-  let m;
-  while ((m = re.exec(html))) scriptBlocks.push(m[1]);
-  const bigScript = scriptBlocks.find((s) => s.includes('function computeFlow'));
-  if (!bigScript) throw new Error('no se encontro el bloque <script> con computeFlow');
-  const cutIdx = bigScript.lastIndexOf('loadPrices();');
-  if (cutIdx === -1) throw new Error('no se encontro el marcador de corte "loadPrices();"');
-  const logicSrc = bigScript.slice(0, cutIdx);
   const ctx = vm.createContext(sandbox);
-  vm.runInContext(logicSrc, ctx, { filename: 'index.html#logic-pwa' });
+  vm.runInContext(srcOverride || extraerLogicSrc(), ctx, { filename: 'index.html#logic-pwa' });
   return sandbox;
 }
 
@@ -438,11 +561,70 @@ section('mutacion: sin el guard "!p||!p.ts", una version ingenua de pxTsLabel SI
 });
 
 // ---------------------------------------------------------------------------
-console.log('');
-console.log(checks + ' aserciones corridas.');
-if (failures) {
-  console.log(failures + ' seccion(es) fallaron.');
-  process.exit(1);
+// 8. loadPrices() real: hallazgo de revision (mejora-5). Promise.allSettled nunca
+//    rechaza, asi que offline (las 3 fetch fallan) `o` queda vacio pero la version
+//    vieja pisaba PRICES.ts con "ahora" igual y lo persistia -> pxTsLabel() mostraba
+//    "precios del <hoy>" con precios de dias, y el ts real quedaba perdido para
+//    siempre en localStorage. Chequeo de punta a punta: se llama loadPrices() REAL
+//    (no una reimplementacion) con `fetch` stubeado para que rechace las 3 veces.
+// ---------------------------------------------------------------------------
+function wait(ms) { return new Promise((res) => setTimeout(res, ms)); }
+function fetchQueSiempreRechaza() { return Promise.reject(new Error('sin conexion (stub de test)')); }
+function tsPreexistenteStore() {
+  return { cnf_prices: JSON.stringify({ mep: 900, btcUsd: 55000, cedears: { SPY: {} }, ts: '2026-07-10T10:00:00.000Z' }) };
 }
-console.log('Todo OK.');
-process.exit(0);
+
+async function loadPricesAsyncChecks() {
+  try {
+    const store = tsPreexistenteStore();
+    const sandbox = loadLogicSandbox(store, { navigator: { onLine: false }, fetch: fetchQueSiempreRechaza });
+    await sandbox.loadPrices();
+    const p = sandbox.pricesSnapshot();
+    check(p.ts === '2026-07-10T10:00:00.000Z',
+      'con las 3 fetch fallando, PRICES.ts NO debe pisarse: debe seguir siendo el real preexistente, fue "' + p.ts + '"');
+    check(p.mep === 900, 'con las fetch fallando, PRICES.mep tampoco debe pisarse (sigue el valor viejo), fue ' + p.mep);
+    const persisted = JSON.parse(store.cnf_prices);
+    check(persisted.ts === '2026-07-10T10:00:00.000Z',
+      'lo efectivamente persistido en localStorage (cnf_prices) tampoco puede llevar un ts nuevo pisado');
+    console.log('OK   loadPrices() real: offline (fetch rechazando) NO pisa el ts preexistente');
+  } catch (e) {
+    failures++;
+    console.log('FAIL loadPrices() real: offline no debe pisar el ts preexistente');
+    console.log('     ' + (e && e.stack ? e.stack.split('\n').slice(0, 6).join('\n     ') : e));
+  }
+
+  try {
+    // mutacion: mismo logicSrc real, pero con la linea del guard revertida a la
+    // version vieja (pisar ts incondicionalmente), via replace de texto -- nunca se
+    // toca el archivo real del repo.
+    const real = extraerLogicSrc();
+    const LINEA_CON_GUARD = "if(o.mep!=null||o.btcUsd!=null||o.cedears)PRICES.ts=new Date().toISOString();";
+    check(real.includes(LINEA_CON_GUARD), 'debe encontrarse la linea real del guard en index.html (si no, este mutante no prueba nada)');
+    const ingenuo = real.replace(LINEA_CON_GUARD, 'PRICES.ts=new Date().toISOString();');
+    check(ingenuo !== real, 'el replace debe haber sacado el guard (si no, el test no prueba nada)');
+
+    const store = tsPreexistenteStore();
+    const sandbox = loadLogicSandbox(store, { navigator: { onLine: false }, fetch: fetchQueSiempreRechaza }, ingenuo);
+    await sandbox.loadPrices();
+    const p = sandbox.pricesSnapshot();
+    check(p.ts !== '2026-07-10T10:00:00.000Z',
+      'sin el guard, offline SI pisaria el ts real (confirma que el guard real hace falta), quedo "' + p.ts + '"');
+    console.log('OK   mutacion: sin el guard de loadPrices(), offline SI pisaria el ts preexistente');
+  } catch (e) {
+    failures++;
+    console.log('FAIL mutacion: sin el guard de loadPrices() deberia pisar el ts');
+    console.log('     ' + (e && e.stack ? e.stack.split('\n').slice(0, 6).join('\n     ') : e));
+  }
+}
+
+// ---------------------------------------------------------------------------
+swResOkAsyncChecks().then(loadPricesAsyncChecks).then(() => {
+  console.log('');
+  console.log(checks + ' aserciones corridas.');
+  if (failures) {
+    console.log(failures + ' seccion(es) fallaron.');
+    process.exit(1);
+  }
+  console.log('Todo OK.');
+  process.exit(0);
+});

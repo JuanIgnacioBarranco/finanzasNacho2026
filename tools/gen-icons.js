@@ -5,11 +5,12 @@
 // que instalar nada). Un data-URI adentro del manifest hubiera evitado esto, pero tiene
 // soporte irregular entre navegadores — por eso son archivos reales versionados acá.
 //
-// Diseño: simple a propósito. Fondo --bg (#0a0d13) del tablero + un círculo --gold
-// (#f6b23a) centrado. Las variantes "any" (192/512) usan un círculo grande; la
-// "maskable" (512) lo deja más chico y centrado, adentro de la "zona segura" que los
-// sistemas operativos no recortan al enmascarar el ícono (radio ~40% del lado; acá
-// usamos un margen extra de resguardo).
+// Diseño: simple a propósito. Fondo --bg (#0a0d13) del tablero + un disco --gold
+// (#f6b23a) con tres barras ascendentes caladas en --bg (ver buildPixels()). Las
+// variantes "any" (192/512) usan un disco grande; la "maskable" (512) lo deja más
+// chico y centrado, adentro de la "zona segura" que los sistemas operativos no
+// recortan al enmascarar el ícono (radio ~40% del lado; acá usamos un margen extra
+// de resguardo).
 //
 // Cómo correr: node tools/gen-icons.js   (regenera los 3 PNG en icons/)
 

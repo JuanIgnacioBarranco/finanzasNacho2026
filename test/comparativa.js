@@ -107,7 +107,7 @@ function makeSegButtons(values, on) {
   });
 }
 
-function loadSandbox(initialStore) {
+function loadSandbox(initialStore, srcOverride) {
   const store = Object.assign({}, initialStore || {});
   const elCache = new Map();
   const perfilButtons = makeSegButtons(['conservador', 'moderado', 'arriesgado'], 'moderado');
@@ -141,7 +141,7 @@ function loadSandbox(initialStore) {
     confirm() { return true; },
   };
   const ctx = vm.createContext(sandbox);
-  vm.runInContext(logicSrc, ctx, { filename: 'index.html#logic-comparativa' });
+  vm.runInContext(srcOverride || logicSrc, ctx, { filename: 'index.html#logic-comparativa' });
   return { sandbox, documentStub, ctx, store };
 }
 
@@ -302,6 +302,80 @@ section('memoizacion: la fila "actual" reusa el calculo de un escenario identico
   // y el escenario "Corto" comparten snapshot, asi que comparten memo.
   check(spy.calls.length === 2,
     'con la fila actual identica a un escenario guardado deben correrse 2 Monte Carlo, no 3; corrieron ' + spy.calls.length);
+});
+
+// ---------------------------------------------------------------------------
+// 3b. Hallazgo de revision (mejora-5): la clave del memo antes era el snapshot ENTERO
+//     via JSON.stringify(snap), pero computeFlow() ignora hLiq/hIdx/hBtc/hTem (cartera
+//     real, solo los lee renderRebalance) y goals (solo los lee computeGoals). Con la
+//     clave vieja, tipear en los campos de cartera real cambiaba la clave sin que
+//     computeFlow() cambiara un bit -> se disparaban 500 paths de Monte Carlo de mas y
+//     los p50/p10/p90 de la fila "Actual" bailaban en pantalla sin causa visible.
+// ---------------------------------------------------------------------------
+section('memoizacion: cambiar SOLO cartera real (hLiq/hIdx/hBtc/hTem) NO recalcula la fila "actual"', () => {
+  const { sandbox, documentStub } = loadSandbox(seedScenarios());
+  const spy = spyMcStats(sandbox);
+  setHorizon(documentStub, 20);
+  sandbox.restore(snapCorto());
+  sandbox.renderCompare(); // deja "actual" en el memo
+
+  const soloHoldings = snapCorto();
+  soloHoldings.inputs.hLiq += 555555;
+  soloHoldings.inputs.hIdx += 555555;
+  soloHoldings.inputs.hBtc += 555555;
+  soloHoldings.inputs.hTem += 555555;
+  sandbox.restore(soloHoldings);
+
+  spy.reset();
+  sandbox.renderCompare();
+  check(spy.calls.length === 0,
+    'cambiar solo hLiq/hIdx/hBtc/hTem (campos que computeFlow no lee) no debe recalcular ninguna fila, corrio ' + spy.calls.length + ' vez/veces');
+});
+
+section('memoizacion: cambiar un campo que computeFlow SI consume (ingresoNum) SI recalcula la fila "actual"', () => {
+  const { sandbox, documentStub } = loadSandbox(seedScenarios());
+  const spy = spyMcStats(sandbox);
+  setHorizon(documentStub, 20);
+  sandbox.restore(snapCorto());
+  sandbox.renderCompare();
+
+  const distinto = snapCorto();
+  distinto.inputs.ingresoNum += 137000;
+  sandbox.restore(distinto);
+
+  spy.reset();
+  sandbox.renderCompare();
+  check(spy.calls.length >= 1, 'cambiar ingresoNum (que SI consume computeFlow) debe recalcular la fila "actual", corrio ' + spy.calls.length + ' vez/veces');
+});
+
+section('mutacion: con la clave vieja (JSON.stringify(snap) entero), cambiar SOLO cartera real SI recalcularia', () => {
+  // Reproduce el bug: la misma logica real de index.html, pero con la linea de la clave
+  // de metricsFor revertida a la version vieja (todo el snapshot, sin flowInputsKey()).
+  // Si este replace no encuentra nada, el mutante no mutó nada y el test no probaría
+  // nada -> se corta ahi mismo con un mensaje claro en vez de dar un falso OK.
+  const viejo = logicSrc.replace(
+    "const key=years+'|'+flowInputsKey(snap);",
+    "const key=years+'|'+JSON.stringify(snap);"
+  );
+  check(viejo !== logicSrc, 'el replace debe haber encontrado la linea de la clave real (si no, el mutante no mutó nada)');
+
+  const { sandbox, documentStub } = loadSandbox(seedScenarios(), viejo);
+  const spy = spyMcStats(sandbox);
+  setHorizon(documentStub, 20);
+  sandbox.restore(snapCorto());
+  sandbox.renderCompare();
+
+  const soloHoldings = snapCorto();
+  soloHoldings.inputs.hLiq += 555555;
+  soloHoldings.inputs.hIdx += 555555;
+  soloHoldings.inputs.hBtc += 555555;
+  soloHoldings.inputs.hTem += 555555;
+  sandbox.restore(soloHoldings);
+
+  spy.reset();
+  sandbox.renderCompare();
+  check(spy.calls.length >= 1,
+    'con la clave vieja (snapshot entero), cambiar solo cartera real SI recalcularia (confirma que flowInputsKey() real hace falta), corrio ' + spy.calls.length + ' vez/veces');
 });
 
 // ---------------------------------------------------------------------------
