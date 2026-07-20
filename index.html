@@ -673,6 +673,16 @@ async function loadPrices(){
   render();
 }
 
+// cedPrice: precio a usar para un CEDEAR. `c` es el ultimo precio OPERADO y la API lo
+// devuelve en 0 cuando el papel no opero ese dia (bajo volumen, o fuera del horario de
+// mercado / fin de semana / feriado). En ese caso caemos al ask (lo que pagas al comprar)
+// y despues al bid, que siguen en el libro. Sin esto, tickers como CIBR/URA quedaban
+// como "precio no disponible" pese a ser comprables. Solo tomamos numeros finitos > 0.
+function cedPrice(x){
+  if(!x) return 0;
+  const ok=v=>(typeof v==='number'&&isFinite(v)&&v>0)?v:0;
+  return ok(x.c) || ok(x.px_ask) || ok(x.px_bid) || 0;
+}
 function ordRow(tk,name,n,monto,px,pct,color,note){
   const pc=pct!=null?`<span class="${pct>=0?'up':'dn'}">${pct>=0?'+':''}${(+pct).toFixed(1)}%</span>`:'';
   const sub=[px?`${fmt.format(px)} ${pc}`:null,n!=null?`comprar <b>${n}</b> nom.`:null,note||null].filter(Boolean).join(' · ');
@@ -689,7 +699,7 @@ function renderOrders(inv,w,sum){
   const liqP=inv*(w.liq/sum);
   const items=[];
   ['idx','btc','tem'].forEach(bid=>{const bp=inv*(w[bid]/sum);
-    TMAP[bid].forEach(o=>{items.push({t:o.t,name:o.name,bid,px:ced[o.t]?ced[o.t].c:0,pct:ced[o.t]?ced[o.t].pct_change:null,target:bp*o.w,n:0});});});
+    TMAP[bid].forEach(o=>{items.push({t:o.t,name:o.name,bid,px:cedPrice(ced[o.t]),pct:ced[o.t]?ced[o.t].pct_change:null,target:bp*o.w,n:0});});});
   // pass 1: floor por objetivo | pass 2: greedy relleno de nominales enteros minimizando efectivo ocioso
   let pool=items.reduce((s,i)=>s+i.target,0);
   items.forEach(i=>{if(i.px>0){i.n=Math.floor(i.target/i.px);pool-=i.n*i.px;}});
