@@ -281,6 +281,19 @@ section('sw.js: SI intercepta (cachea) pedidos propios y de navegacion, como con
   check(evManifest._respondido, 'un estatico propio (manifest.json) SI debe pasar por respondWith (cache-first)');
 });
 
+// Regresion (deploy no visible): con `fetch(req)` a secas, el network-first respetaba el
+// cache HTTP del navegador (GitHub Pages sirve el HTML con max-age=600), asi que un deploy
+// nuevo no se veia al recargar hasta 10 min. La navegacion debe pedir con {cache:'reload'}
+// para ir siempre al servidor.
+section('sw.js: la navegacion pide al servidor con {cache:"reload"} (network-first de verdad, no cache HTTP)', () => {
+  const opts = [];
+  const fetchImpl = (req, o) => { opts.push(o); return Promise.resolve({ ok: true, clone() { return this; } }); };
+  const { listeners } = correrSw(swSrc, { fetchImpl });
+  pedidoFetch(listeners, 'https://juanignaciobarranco.github.io/finanzasNacho2026/index.html', { mode: 'navigate' });
+  check(opts.length >= 1, 'la navegacion debe haber llamado a fetch');
+  check(opts[0] && opts[0].cache === 'reload', 'fetch de navegacion debe usar {cache:"reload"}, fue ' + JSON.stringify(opts[0]));
+});
+
 section('mutacion: sacando el filtro de hosts de precios, sw.js SI terminaria cacheandolos', () => {
   const sinFiltro = swSrc.replace(
     /if\s*\(esHostSinCache\(url\.hostname\)\)\s*return;[^\n]*\n/,

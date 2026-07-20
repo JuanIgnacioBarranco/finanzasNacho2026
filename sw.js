@@ -8,7 +8,7 @@
 
 // Nombre de cache VERSIONADO: subí el numero cuando cambien los estaticos precacheados
 // para que `activate` tire la version vieja y no quede basura pisando el deploy nuevo.
-const CACHE_NAME = 'cnf-v1';
+const CACHE_NAME = 'cnf-v2';
 
 const PRECACHE_URLS = [
   './',
@@ -53,9 +53,13 @@ self.addEventListener('fetch', (event) => {
 
   const esNavegacion = req.mode === 'navigate' || (req.headers.get('accept') || '').includes('text/html');
   if (esNavegacion) {
-    // network-first: si hay señal, la version nueva se ve enseguida; si no, cae al cache.
+    // network-first REAL: `{cache:'reload'}` obliga a ir al servidor salteando el cache
+    // HTTP del navegador. Sin esto, GitHub Pages sirve el HTML con `Cache-Control:
+    // max-age=600`, asi que `fetch(req)` a secas devolvia el index.html cacheado hasta
+    // 10 min — o sea, un deploy nuevo NO se veia al recargar (era "cache-first por 10
+    // minutos" disfrazado de network-first). Si no hay señal, el .catch cae al cache.
     event.respondWith(
-      fetch(req)
+      fetch(req, { cache: 'reload' })
         .then((res) => {
           // Solo cacheamos respuestas ok: fetch() resuelve normalmente (no rechaza) con
           // 404/500, y GitHub Pages tira 404 transitorios durante sus propios deploys. Sin
