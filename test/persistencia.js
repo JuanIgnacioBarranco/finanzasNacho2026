@@ -172,12 +172,13 @@ function nonTrivialSnapshot() {
     v: 1,
     perfil: 'arriesgado',
     plazo: 'corto',
+    aporteModo: 'fijo',
     weights: { liq: 5, idx: 35, btc: 40, tem: 20 },
     inputs: {
       ingresoNum: 2345000, gAlq: 610000, gCom: 280000, gImp: 190000,
       cuotas: 75000, pctInv: 65,
       objYa: 1200000, objMud: 4100000,
-      projYrs: 12, projP0: 300000, projGoal: 80000000,
+      projYrs: 12, projP0: 300000, projGoal: 80000000, inflExp: 45,
       hLiq: 111111, hIdx: 222222, hBtc: 333333, hTem: 444444,
     },
     goals: [
@@ -198,6 +199,7 @@ section('round-trip: restore(snapshot()) reproduce un estado no trivial', () => 
   const snap1 = sandbox.snapshot();
   assert.strictEqual(snap1.perfil, 'arriesgado');
   assert.strictEqual(snap1.plazo, 'corto');
+  assert.strictEqual(snap1.aporteModo, 'fijo');
   assert.deepStrictEqual(normalize(snap1.weights), src.weights);
   assert.deepStrictEqual(normalize(snap1.inputs), src.inputs);
   assert.deepStrictEqual(normalize(snap1.goals), src.goals);

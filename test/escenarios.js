@@ -161,12 +161,12 @@ function normalize(x) { return JSON.parse(JSON.stringify(x)); }
 
 function snapA() {
   return {
-    v: 1, perfil: 'arriesgado', plazo: 'corto',
+    v: 1, perfil: 'arriesgado', plazo: 'corto', aporteModo: 'fijo',
     weights: { liq: 5, idx: 35, btc: 40, tem: 20 },
     inputs: {
       ingresoNum: 2345000, gAlq: 610000, gCom: 280000, gImp: 190000,
       cuotas: 75000, pctInv: 65, objYa: 1200000, objMud: 4100000,
-      projYrs: 12, projP0: 300000, projGoal: 80000000,
+      projYrs: 12, projP0: 300000, projGoal: 80000000, inflExp: 45,
       hLiq: 111111, hIdx: 222222, hBtc: 333333, hTem: 444444,
     },
     goals: [{ name: 'Auto', usd: 18000, years: 3 }, { name: 'Casa propia', usd: 120000, years: 10 }],
@@ -174,12 +174,12 @@ function snapA() {
 }
 function snapB() {
   return {
-    v: 1, perfil: 'conservador', plazo: 'largo',
+    v: 1, perfil: 'conservador', plazo: 'largo', aporteModo: 'infl',
     weights: { liq: 60, idx: 25, btc: 5, tem: 10 },
     inputs: {
       ingresoNum: 1500000, gAlq: 500000, gCom: 300000, gImp: 200000,
       cuotas: 250000, pctInv: 80, objYa: 3900000, objMud: 3500000,
-      projYrs: 20, projP0: 0, projGoal: 50000000,
+      projYrs: 20, projP0: 0, projGoal: 50000000, inflExp: 20,
       hLiq: 999, hIdx: 888, hBtc: 777, hTem: 666,
     },
     goals: [{ name: 'Viaje', usd: 3500, years: 2 }],
@@ -441,12 +441,31 @@ section('readScenarios(): filtra snaps que SON objeto pero sin la forma minima d
     { name: 'inputs no es objeto', ts: 1, snap: { v: 1, inputs: 'no soy un objeto', weights: { liq: 25, idx: 25, btc: 25, tem: 25 } } },
     { name: 'weights ausente', ts: 1, snap: { v: 1, inputs: snapA().inputs } },
     { name: 'weights con claves incompletas', ts: 1, snap: { v: 1, inputs: snapA().inputs, weights: { liq: 5, idx: 35 } } },
-    { name: 'inputs con un campo faltante (le falta hTem)', ts: 1, snap: { v: 1, inputs: (() => { const i = Object.assign({}, snapA().inputs); delete i.hTem; return i; })(), weights: snapA().weights } },
+    { name: 'inputs sin un campo CORE (le falta projGoal)', ts: 1, snap: { v: 1, inputs: (() => { const i = Object.assign({}, snapA().inputs); delete i.projGoal; return i; })(), weights: snapA().weights } },
     { name: 'ok', ts: 1, snap: snapA() },
   ]) });
   const list = sandbox.readScenarios();
   check(Array.isArray(list) && list.length === 1, 'readScenarios() debe filtrar los 5 snaps incompletos y conservar solo el valido, quedaron ' + list.length);
   check(list[0].name === 'ok', 'el unico elemento conservado debe ser el valido ("ok"), fue "' + (list[0] && list[0].name) + '"');
+});
+
+// Compatibilidad hacia atras: un escenario guardado por una version ANTERIOR a la mejora
+// #6 no tiene aporteModo ni inputs.inflExp. Debe seguir siendo usable (los campos nuevos
+// caen a su default), no descartarse — si no, el usuario perderia sus escenarios viejos.
+section('compat: un escenario viejo (sin aporteModo ni inflExp) sigue siendo usable y carga con defaults', () => {
+  const viejo = { v:1, perfil:'moderado', plazo:'largo',
+    weights:{ liq:15, idx:55, btc:15, tem:15 },
+    inputs:{ ingresoNum:1500000, gAlq:500000, gCom:300000, gImp:200000, cuotas:250000, pctInv:80,
+      objYa:3900000, objMud:3500000, projYrs:20, projP0:0, projGoal:50000000,
+      hLiq:0, hIdx:0, hBtc:0, hTem:0 },  // sin inflExp, sin aporteModo
+    goals:[{ name:'Viaje', usd:3500, years:2 }] };
+  const { sandbox } = loadSandbox({ cnf_scenarios_v1: JSON.stringify([{ name:'viejo', ts:1, snap:viejo }]) });
+  const list = sandbox.readScenarios();
+  check(list.length === 1 && list[0].name === 'viejo', 'el escenario viejo NO debe descartarse (quedaron ' + list.length + ')');
+  sandbox.applyScenario(0);
+  const s = sandbox.snapshot();
+  check(s.aporteModo === 'infl', 'al cargar un escenario sin aporteModo, queda el default "infl", fue ' + s.aporteModo);
+  check(s.inputs.ingresoNum === 1500000, 'los datos del escenario viejo se restauran igual');
 });
 
 section('arranque completo: cnf_scenarios_v1 con el snap EXACTO del bug reportado ({"v":1}, sin inputs/weights) no tira abajo el tablero', () => {
