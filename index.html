@@ -523,6 +523,19 @@
         <div class="money"><span class="cur">$</span><input type="number" id="projGoal" value="50000000" step="1000000"></div>
         <div class="mini" id="goalUsd" style="margin-top:5px"></div>
       </div>
+      <div class="field" style="margin-top:0">
+        <label>Inflación anual esperada</label>
+        <div class="money"><input type="number" id="inflExp" value="30" min="0" max="300" step="5"><span class="cur" style="left:auto;right:12px">%</span></div>
+      </div>
+    </div>
+
+    <div class="field" style="margin-top:0;margin-bottom:16px">
+      <label>Tu aporte mensual, ¿le sigue el ritmo a la inflación?</label>
+      <div class="seg" id="aporteModo">
+        <button data-v="infl" class="on">Sí, lo ajusto</button>
+        <button data-v="fijo">Lo dejo nominal fijo</button>
+      </div>
+      <div class="mini" id="aporteNota" style="margin-top:7px"></div>
     </div>
 
     <div class="projbig">
@@ -622,7 +635,7 @@ function preset(perfil,plazo){
   return a;
 }
 
-const state={perfil:'moderado',plazo:'largo',weights:preset('moderado','largo')};
+const state={perfil:'moderado',plazo:'largo',aporteModo:'infl',weights:preset('moderado','largo')};
 
 // --- precios en vivo (feature 1) ---
 const PX_SRC={mep:'https://dolarapi.com/v1/dolares/bolsa',btc:'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd',ced:'https://data912.com/live/arg_cedears'};
@@ -729,7 +742,8 @@ seg('plazo', v=>{state.plazo=v;state.weights=preset(state.perfil,v);
   document.getElementById('projYrs').value={corto:3,mediano:8,largo:20}[v];
   buildAlloc();render();scheduleSave();});
 seg('ingreso',v=>{document.getElementById('ingresoNum').value=v;render();scheduleSave();});
-['ingresoNum','gAlq','gCom','gImp','cuotas','pctInv','objMud','objYa','projYrs','projP0','projGoal'].forEach(id=>document.getElementById(id).addEventListener('input',render));
+seg('aporteModo',v=>{state.aporteModo=v;render();scheduleSave();});
+['ingresoNum','gAlq','gCom','gImp','cuotas','pctInv','objMud','objYa','projYrs','projP0','projGoal','inflExp'].forEach(id=>document.getElementById(id).addEventListener('input',render));
 document.getElementById('reset').onclick=()=>{state.weights=preset(state.perfil,state.plazo);buildAlloc();render();scheduleSave();};
 
 function rdots(n,c){let s='';for(let i=1;i<=5;i++)s+=`<span class="rp" style="background:${i<=n?c:''}"></span>`;return s;}
@@ -751,7 +765,19 @@ function buildAlloc(){
   });
 }
 
-function fvSeries(P0,C,R,months){const rm=Math.pow(1+R,1/12)-1,a=[P0];let v=P0;for(let t=1;t<=months;t++){v=v*(1+rm)+C;a.push(v);}return a;}
+// decay: factor mensual del aporte (1 = constante; <1 = se licua por inflacion si el
+// aporte nominal en pesos no se ajusta). El aporte del mes t es C*decay^(t-1).
+function fvSeries(P0,C,R,months,decay){decay=decay||1;const rm=Math.pow(1+R,1/12)-1,a=[P0];let v=P0;for(let t=1;t<=months;t++){v=v*(1+rm)+C*Math.pow(decay,t-1);a.push(v);}return a;}
+// aporteModel: traduce el flujo mensual (en pesos) al modelo de proyeccion en DOLARES.
+// La cartera rinde en USD, asi que proyectamos en USD: el aporte y el capital inicial se
+// convierten al mep, y el aporte decae si elegiste "nominal fijo" (no lo ajustas por
+// inflacion). Con "ajusto por inflacion" (default) el aporte se mantiene en USD (decay=1).
+function aporteModel({invPesos,P0pesos,mep,inflA,modo}){
+  const m=(typeof mep==='number'&&mep>0)?mep:1500;
+  const infl=(typeof inflA==='number'&&isFinite(inflA)&&inflA>0)?inflA:0;
+  const decay=(modo==='fijo'&&infl>0)?Math.pow(1/(1+infl),1/12):1;
+  return {C0usd:(invPesos||0)/m, P0usd:(P0pesos||0)/m, decay, mep:m};
+}
 function fmtShort(v){const s=v<0?'-':'';v=Math.abs(v);if(v>=1e6)return s+'$'+(v/1e6).toFixed(v>=1e7?0:1)+'M';if(v>=1e3)return s+'$'+(v/1e3).toFixed(0)+'k';return s+'$'+Math.round(v);}
 const VOL={liq:0.01,idx:0.15,btc:0.70,tem:0.24};
 function portfolioVol(w,sum){const rho=0.4,k=['liq','idx','btc','tem'];let v=0;
@@ -764,6 +790,7 @@ function scheduleMC(a){clearTimeout(_mcTimer);_mcTimer=setTimeout(()=>drawMC(a),
 // pero NO es determinista porque randn() tira de Math.random(). drawMC sólo dibuja.
 function mcStats(a){
   const C=a.C,P0=a.P0,muA=a.muA,volA=a.volA,years=a.years,goal=a.goal;
+  const decay=(typeof a.decay==='number'&&isFinite(a.decay))?a.decay:1; // aporte del mes t = C*decay^(t-1)
   const months=Math.max(1,Math.round(years*12)),N=500;
   const sLog=Math.sqrt(Math.log(1+(volA*volA)/Math.pow(1+muA,2))), mLog=Math.log(1+muA)-0.5*sLog*sLog;
   const mm=mLog/12, sm=sLog/Math.sqrt(12);
@@ -771,7 +798,7 @@ function mcStats(a){
   for(let t=0;t<=months;t+=step)sM.push(t); if(sM[sM.length-1]!==months)sM.push(months);
   const cols=sM.map(()=>new Float64Array(N)), finals=new Float64Array(N); let reached=0;
   for(let p=0;p<N;p++){let v=P0,si=0;
-    for(let t=0;t<=months;t++){ if(t>0)v=v*Math.exp(mm+sm*randn())+C; if(si<sM.length&&t===sM[si]){cols[si][p]=v;si++;} }
+    for(let t=0;t<=months;t++){ if(t>0)v=v*Math.exp(mm+sm*randn())+C*Math.pow(decay,t-1); if(si<sM.length&&t===sM[si]){cols[si][p]=v;si++;} }
     finals[p]=v; if(v>=goal)reached++;
   }
   const p10=[],p50=[],p90=[]; cols.forEach(c=>{const b=Float64Array.from(c).sort();const gg=q=>b[Math.min(b.length-1,Math.floor(q*b.length))];p10.push(gg(.1));p50.push(gg(.5));p90.push(gg(.9));});
@@ -787,7 +814,10 @@ function drawMC(a){
   const step=Math.max(1,Math.round(months/70)), sM=[];
   for(let t=0;t<=months;t+=step)sM.push(t); if(sM[sM.length-1]!==months)sM.push(months);
   const {p10,p50,p90,prob}=mcStats(a);
-  const med=p50[p50.length-1],lo=p10[p10.length-1],hi=p90[p90.length-1],tot=P0+C*months;
+  const decay=(typeof a.decay==='number'&&isFinite(a.decay))?a.decay:1;
+  // aporte acumulado hasta el mes t, con el aporte decayendo: P0 + C*Σ decay^k
+  const acum=t=>decay===1?P0+C*t:P0+C*(1-Math.pow(decay,t))/(1-decay);
+  const med=p50[p50.length-1],lo=p10[p10.length-1],hi=p90[p90.length-1],tot=acum(months);
   document.getElementById('pbVal').textContent=fmt.format(Math.round(med));
   document.getElementById('pbYrs').textContent=years;
   document.getElementById('pbSub').innerHTML=`Rango probable (p10–p90): <b style="color:#cfd8e8">${fmt.format(Math.round(lo))}</b> → <b style="color:#cfd8e8">${fmt.format(Math.round(hi))}</b>`;
@@ -796,7 +826,7 @@ function drawMC(a){
   pp.style.color=prob>=66?css('--good'):prob>=33?css('--warn'):css('--bad');
   document.getElementById('pRet').innerHTML=`~${(muA*100).toFixed(1)}% <span class="mut" style="font-size:12px">± ${(volA*100).toFixed(0)}%</span>`;
   const W=680,H=300,pl=54,pr=14,ptop=14,pbot=28;
-  const aport=sM.map(t=>P0+C*t);
+  const aport=sM.map(t=>acum(t));
   const maxY=Math.max(p90[p90.length-1],tot,goal,1)*1.06;
   const X=i=>pl+(sM[i]/months)*(W-pl-pr), Y=v=>ptop+(1-Math.max(0,v)/maxY)*(H-ptop-pbot);
   const poly=arr=>arr.map((v,i)=>X(i).toFixed(1)+','+Y(v).toFixed(1)).join(' ');
@@ -849,12 +879,21 @@ let goals=[
 let LAST={inv:0,muA:0.05,volA:0.12,P0:0};
 let _gTimer=null;
 function scheduleGoals(){clearTimeout(_gTimer);_gTimer=setTimeout(computeGoals,130);}
-function runGoalsMC(C,P0,muA,volA,maxY){
+// annFV: valor futuro de aportar 1/mes durante `months` a tasa mensual `rm`, con el
+// aporte decayendo por `decay` cada mes. Sirve para el consejo determinista "sumá $X/mes"
+// de forma coherente con la MC. Con decay=1 se reduce a la anualidad clásica (g^m-1)/rm.
+function annFV(rm,months,decay){
+  const g=1+rm; decay=decay||1;
+  if(Math.abs(g-decay)<1e-12) return months*Math.pow(g,months-1);
+  return (Math.pow(g,months)-Math.pow(decay,months))/(g-decay);
+}
+function runGoalsMC(C,P0,muA,volA,maxY,decay){
+  decay=(typeof decay==='number'&&isFinite(decay))?decay:1;
   const N=400,maxM=maxY*12;
   const sLog=Math.sqrt(Math.log(1+(volA*volA)/Math.pow(1+muA,2))),mLog=Math.log(1+muA)-0.5*sLog*sLog,mm=mLog/12,sm=sLog/Math.sqrt(12);
   const byY=[]; for(let y=0;y<=maxY;y++)byY.push(new Float64Array(N));
   for(let p=0;p<N;p++){let v=P0; byY[0][p]=v;
-    for(let t=1;t<=maxM;t++){v=v*Math.exp(mm+sm*randn())+C; if(t%12===0)byY[t/12][p]=v;}}
+    for(let t=1;t<=maxM;t++){v=v*Math.exp(mm+sm*randn())+C*Math.pow(decay,t-1); if(t%12===0)byY[t/12][p]=v;}}
   return byY;
 }
 function buildGoals(){
@@ -874,8 +913,9 @@ function buildGoals(){
 function computeGoals(){
   if(!document.getElementById('goalsList'))return;
   const inv=LAST.inv,muA=LAST.muA,volA=LAST.volA,P0=LAST.P0, mep=PRICES.mep||1500;
+  const decay=(typeof LAST.decay==='number'&&isFinite(LAST.decay))?LAST.decay:1;
   const maxY=Math.min(40,Math.max(1,...goals.map(g=>g.years||1)));
-  const byY=runGoalsMC(inv,P0,muA,volA,maxY), N=byY[0].length;
+  const byY=runGoalsMC(inv,P0,muA,volA,maxY,decay), N=byY[0].length;
   const medBy=byY.map(a=>{const s=Float64Array.from(a).sort();return s[Math.floor(0.5*N)];});
   const rm=Math.pow(1+muA,1/12)-1;
   goals.forEach((g,i)=>{
@@ -884,7 +924,7 @@ function computeGoals(){
     let cnt=0; const arr=byY[y]; for(let k=0;k<N;k++)if(arr[k]>=goalP)cnt++;
     const prob=Math.round(100*cnt/N), median=medBy[y];
     let hit=null; for(let yy=1;yy<=maxY;yy++){if(medBy[yy]>=goalP){hit=yy;break;}}
-    const months=y*12, gP0=P0*Math.pow(1+rm,months), ann=rm!==0?((Math.pow(1+rm,months)-1)/rm):months;
+    const months=y*12, gP0=P0*Math.pow(1+rm,months), ann=annFV(rm,months,decay);
     const reqC=Math.max(0,(goalP-gP0)/ann), extra=reqC-inv;
     const col=prob>=66?'--good':prob>=33?'--warn':'--bad';
     let adv;
@@ -902,7 +942,7 @@ function computeGoals(){
 // iterando este MISMO array — antes vivían duplicados a mano en dos listas que
 // se podían desincronizar en silencio si alguien agregaba un campo a una y se
 // olvidaba de la otra.
-const INPUT_IDS=['ingresoNum','gAlq','gCom','gImp','cuotas','pctInv','objYa','objMud','projYrs','projP0','projGoal','hLiq','hIdx','hBtc','hTem'];
+const INPUT_IDS=['ingresoNum','gAlq','gCom','gImp','cuotas','pctInv','objYa','objMud','projYrs','projP0','projGoal','inflExp','hLiq','hIdx','hBtc','hTem'];
 
 // readDOM: única lectura del DOM, devuelve un snapshot plano (mejora #5 tarea 1).
 // Con esto se puede recalcular un escenario guardado sin tenerlo cargado en pantalla.
@@ -913,6 +953,7 @@ function readDOM(){
     v: 1,
     perfil: state.perfil,
     plazo: state.plazo,
+    aporteModo: state.aporteModo,
     weights: {...state.weights},
     inputs,
     goals: goals.map(g=>({name:g.name, usd:g.usd, years:g.years})),
@@ -1006,13 +1047,20 @@ function render(){
                        :`<span style="color:var(--good)">✓ Entra en tu excedente.</span>`);
 
   // proyeccion Monte Carlo (dinamica segun todo el dashboard)
+  // Todo se proyecta en PESOS DE HOY (poder adquisitivo constante) con retorno real/USD.
+  // Si el aporte no se ajusta por inflacion (modo "fijo"), decae en poder de compra.
+  const decay=aporteModel({invPesos:f.inv,P0pesos:f.P0,mep:PRICES.mep,inflA:(inputs.inflExp||0)/100,modo:state.aporteModo}).decay;
+  const inflPct=Math.round(inputs.inflExp||0);
+  document.getElementById('aporteNota').innerHTML = state.aporteModo==='fijo'
+    ? `Dejás ${fmt.format(f.inv)}/mes <b>fijos</b>: con ${inflPct}% de inflación pierden poder de compra cada año. Las metas de largo plazo se vuelven mucho más difíciles — es el escenario realista si no subís el aporte.`
+    : `Subís tu aporte cada año con la inflación, así se mantiene en <b>valor de hoy</b> (${fmt.format(f.inv)}/mes). Es lo razonable si tu sueldo acompaña la inflación.`;
   document.getElementById('projYrsV').textContent=f.years+(f.years===1?' año':' años');
   fill(document.getElementById('projYrs'),(f.years-1)/34,css('--good'));
   document.getElementById('goalUsd').textContent=PRICES.mep?'≈ US$'+Math.round(f.goal/PRICES.mep).toLocaleString('es-AR')+' a MEP de hoy':'';
-  scheduleMC({C:f.inv,P0:f.P0,muA:f.ret/100,volA:f.volA,years:f.years,goal:f.goal});
+  scheduleMC({C:f.inv,P0:f.P0,muA:f.ret/100,volA:f.volA,years:f.years,goal:f.goal,decay});
 
   // metas de vida (feature 4)
-  LAST={inv:f.inv,muA:f.ret/100,volA:f.volA,P0:f.P0}; scheduleGoals(); scheduleCompare();
+  LAST={inv:f.inv,muA:f.ret/100,volA:f.volA,P0:f.P0,decay}; scheduleGoals(); scheduleCompare();
 
   // cartera real + rebalanceo (feature 2)
   renderRebalance(w,sum);
@@ -1040,6 +1088,7 @@ function restore(s){
 
   if(PERFILES.includes(s.perfil)) state.perfil=s.perfil;
   if(PLAZOS.includes(s.plazo)) state.plazo=s.plazo;
+  if(s.aporteModo==='infl'||s.aporteModo==='fijo') state.aporteModo=s.aporteModo;
 
   if(s.weights && typeof s.weights==='object'){
     const w={...state.weights};
@@ -1072,6 +1121,7 @@ function restore(s){
   // refrescar el botón activo de los segmentos, si no la UI queda mintiendo
   document.querySelectorAll('#perfil button').forEach(b=>b.classList.toggle('on', b.dataset.v===state.perfil));
   document.querySelectorAll('#plazo button').forEach(b=>b.classList.toggle('on', b.dataset.v===state.plazo));
+  document.querySelectorAll('#aporteModo button').forEach(b=>b.classList.toggle('on', b.dataset.v===state.aporteModo));
 
   // buildAlloc/buildGoals/render ya disparan scheduleMC()/scheduleGoals() adentro de
   // render() con los parámetros recién calculados; no se repiten sueltos acá porque
@@ -1134,10 +1184,15 @@ function bootState(){
 // crudo persiste tal cual hasta el proximo saveScenario()/deleteScenario() -no se
 // borra nada del usuario en este paso, solo se deja de usar lo que no se puede
 // calcular.
+// CORE_INPUT_IDS: los inputs que computeFlow() realmente consume y sin los cuales daria
+// NaN. Validamos SOLO estos, NO todo INPUT_IDS: asi un escenario guardado por una version
+// anterior (sin campos agregados despues, como inflExp) sigue siendo usable — los campos
+// nuevos son opcionales y caen a su default. Agregar un input nuevo no invalida los guardados.
+const CORE_INPUT_IDS=['ingresoNum','gAlq','gCom','gImp','cuotas','pctInv','projYrs','projGoal','projP0'];
 function scenarioUsable(snap){
   if(!snap || typeof snap!=='object') return false;
   if(!snap.inputs || typeof snap.inputs!=='object') return false;
-  if(!INPUT_IDS.every(id=>typeof snap.inputs[id]==='number' && Number.isFinite(snap.inputs[id]))) return false;
+  if(!CORE_INPUT_IDS.every(id=>typeof snap.inputs[id]==='number' && Number.isFinite(snap.inputs[id]))) return false;
   if(!snap.weights || typeof snap.weights!=='object') return false;
   if(!['liq','idx','btc','tem'].every(k=>typeof snap.weights[k]==='number' && Number.isFinite(snap.weights[k]))) return false;
   return true;
@@ -1245,7 +1300,8 @@ function flowInputsKey(snap){
   const w=(snap && typeof snap.weights==='object' && snap.weights) || {};
   return JSON.stringify({w,
     ingresoNum:i.ingresoNum, gAlq:i.gAlq, gCom:i.gCom, gImp:i.gImp, cuotas:i.cuotas,
-    pctInv:i.pctInv, projYrs:i.projYrs, projGoal:i.projGoal, projP0:i.projP0});
+    pctInv:i.pctInv, projYrs:i.projYrs, projGoal:i.projGoal, projP0:i.projP0,
+    inflExp:i.inflExp, aporteModo:snap && snap.aporteModo});
 }
 // La clave incluye el horizonte y lo que computeFlow() efectivamente consume (ver
 // flowInputsKey arriba): cambiar cualquiera de los dos recalcula, y un escenario
@@ -1255,7 +1311,8 @@ function metricsFor(snap,years){
   const key=years+'|'+flowInputsKey(snap);
   if(_cmpMemo.has(key)) return _cmpMemo.get(key);
   const f=computeFlow(snap);
-  const st=mcStats({C:f.inv,P0:f.P0,muA:f.ret/100,volA:f.volA,years,goal:f.goal});
+  const decay=aporteModel({invPesos:f.inv,P0pesos:f.P0,mep:PRICES.mep,inflA:((snap.inputs&&snap.inputs.inflExp)||0)/100,modo:snap.aporteModo}).decay;
+  const st=mcStats({C:f.inv,P0:f.P0,muA:f.ret/100,volA:f.volA,years,goal:f.goal,decay});
   const last=a=>a[a.length-1];
   const m={exced:f.exced,inv:f.inv,p10:last(st.p10),p50:last(st.p50),p90:last(st.p90),prob:st.prob,ownYears:f.years};
   if(_cmpMemo.size>=CMP_MEMO_MAX)_cmpMemo.clear();

@@ -142,7 +142,7 @@ section('readDOM(): forma exacta del snapshot', () => {
     ingresoNum: 1500000, gAlq: 500000, gCom: 300000, gImp: 200000,
     cuotas: 250000, pctInv: 80,
     objYa: 3900000, objMud: 3500000,
-    projYrs: 20, projP0: 0, projGoal: 50000000,
+    projYrs: 20, projP0: 0, projGoal: 50000000, inflExp: 30,
     hLiq: 111, hIdx: 222, hBtc: 333, hTem: 444,
   };
   Object.keys(inputVals).forEach(id => { documentStub.getElementById(id).value = String(inputVals[id]); });
@@ -152,6 +152,7 @@ section('readDOM(): forma exacta del snapshot', () => {
   check(snap.v === 1, 'v debe ser 1, fue ' + snap.v);
   check(snap.perfil === 'moderado', 'perfil default esperado moderado, fue ' + snap.perfil);
   check(snap.plazo === 'largo', 'plazo default esperado largo, fue ' + snap.plazo);
+  check(snap.aporteModo === 'infl', 'aporteModo default esperado infl, fue ' + snap.aporteModo);
   const expectedWeights = sandbox.preset('moderado', 'largo');
   assert.deepStrictEqual(snap.weights, expectedWeights, 'weights debe ser copia de preset(moderado,largo)');
 
@@ -205,7 +206,7 @@ section('readDOM(): forma exacta del snapshot', () => {
   check(snap.goals[0].usd === origUsd, 'mutar goals[0] global no debe afectar snap.goals[0] (aliasing detectado)');
   globalGoals[0].usd = origUsd;
 
-  check(Object.keys(snap).sort().join(',') === ['v', 'perfil', 'plazo', 'weights', 'inputs', 'goals'].sort().join(','),
+  check(Object.keys(snap).sort().join(',') === ['v', 'perfil', 'plazo', 'aporteModo', 'weights', 'inputs', 'goals'].sort().join(','),
     'el snapshot no debe tener claves extra ni faltantes');
 });
 

@@ -170,12 +170,12 @@ function setHorizon(documentStub, years) {
 
 function snapCorto() {
   return {
-    v: 1, perfil: 'arriesgado', plazo: 'corto',
+    v: 1, perfil: 'arriesgado', plazo: 'corto', aporteModo: 'infl',
     weights: { liq: 5, idx: 35, btc: 40, tem: 20 },
     inputs: {
       ingresoNum: 2345000, gAlq: 610000, gCom: 280000, gImp: 190000,
       cuotas: 75000, pctInv: 65, objYa: 1200000, objMud: 4100000,
-      projYrs: 10, projP0: 300000, projGoal: 80000000,
+      projYrs: 10, projP0: 300000, projGoal: 80000000, inflExp: 30,
       hLiq: 111111, hIdx: 222222, hBtc: 333333, hTem: 444444,
     },
     goals: [{ name: 'Auto', usd: 18000, years: 3 }],
@@ -183,12 +183,12 @@ function snapCorto() {
 }
 function snapLargo() {
   return {
-    v: 1, perfil: 'conservador', plazo: 'largo',
+    v: 1, perfil: 'conservador', plazo: 'largo', aporteModo: 'infl',
     weights: { liq: 60, idx: 25, btc: 5, tem: 10 },
     inputs: {
       ingresoNum: 1500000, gAlq: 500000, gCom: 300000, gImp: 200000,
       cuotas: 250000, pctInv: 80, objYa: 3900000, objMud: 3500000,
-      projYrs: 30, projP0: 0, projGoal: 50000000,
+      projYrs: 30, projP0: 0, projGoal: 50000000, inflExp: 30,
       hLiq: 999, hIdx: 888, hBtc: 777, hTem: 666,
     },
     goals: [{ name: 'Viaje', usd: 3500, years: 2 }],
